@@ -6,7 +6,7 @@ import heroAsset from "@/assets/hero-drop.jpg.asset.json";
 import consoleAsset from "@/assets/prize-console.jpg.asset.json";
 import gameAsset from "@/assets/prize-game.jpg.asset.json";
 import giftAsset from "@/assets/prize-giftcard.jpg.asset.json";
-import { allowanceQuery, featuredCampaignQuery, publicEntriesQuery, statsQuery } from "@/lib/campaign-queries";
+import { allowanceQuery, drawResultQuery, featuredCampaignQuery, publicEntriesQuery, statsQuery } from "@/lib/campaign-queries";
 import { formatMoney, formatNumber, getCountdown, packageAvailability, percentSold } from "@/lib/campaign-rules";
 import { tr, useI18n, type TKey } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
@@ -58,6 +58,7 @@ function CampaignPage() {
         <HowSection />
         <PrizesSection />
         <EntriesSection />
+        <WinnersSection />
         <section id="faq" className="mx-auto max-w-3xl scroll-mt-20 px-4 py-20">
           <p className="eyebrow">{t("faq_eyebrow")}</p>
           <h2 className="mt-2 font-display text-3xl font-bold">{t("faq_title")}</h2>
@@ -70,7 +71,7 @@ function CampaignPage() {
             ))}
           </Accordion>
           <div className="mt-8 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
-            <p className="font-mono text-xs font-semibold text-warning">{t("rules_draft")}</p>
+            {campaign.rules_status !== "approved" && <p className="font-mono text-xs font-semibold text-warning">{t("rules_draft")}</p>}
             <Link to="/rules" className="mt-1 inline-block text-primary hover:underline">{t("rules_link_cta")} →</Link>
           </div>
         </section>
@@ -237,14 +238,14 @@ function CampaignPage() {
               <p className="mt-4 text-sm text-muted-foreground">{t("summary_none")}</p>
             )}
             <Button className="mt-5 w-full bg-signal" size="lg" disabled={!sel || !selAvail?.available} onClick={() => setOpen(true)}>{t("summary_confirm")}</Button>
-            <p className="mt-3 text-xs text-muted-foreground">{t("summary_demo_note")}</p>
+            <p className="mt-3 text-xs text-muted-foreground">{t(isDemo ? "summary_demo_note" : "summary_live_note")}</p>
           </aside>
         </div>
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle>{t("confirm_title")}</DialogTitle>
-              <DialogDescription>{t("confirm_body")}</DialogDescription>
+              <DialogTitle>{t(isDemo ? "confirm_title" : "confirm_title_live")}</DialogTitle>
+              <DialogDescription>{t(isDemo ? "confirm_body" : "confirm_body_live")}</DialogDescription>
             </DialogHeader>
             <ul className="space-y-2 text-sm">
               <li className="flex gap-2"><Check className="h-4 w-4 shrink-0 text-success" />{t("confirm_eligible")}</li>
@@ -354,6 +355,36 @@ function CampaignPage() {
               <ChevronDown className={`mr-1 h-4 w-4 transition ${showAll ? "rotate-180" : ""}`} />{showAll ? "−" : `+${rows.length - 5}`}
             </Button>
           )}
+        </div>
+      </section>
+    );
+  }
+  function WinnersSection() {
+    const { locale } = useI18n();
+    const draw = useQuery(drawResultQuery(campaign.id)).data;
+    if (!draw) return null;
+    return (
+      <section id="winners" className="mx-auto max-w-4xl scroll-mt-20 px-4 py-20">
+        <p className="eyebrow">{t("winners_eyebrow")}</p>
+        <h2 className="mt-2 font-display text-3xl font-bold">{t("winners_title")}</h2>
+        <p className="mt-2 text-sm text-muted-foreground">{t("winners_sub")}</p>
+        <p className="mt-1 font-mono text-xs text-muted-foreground">
+          {t("winners_drawn")} {new Date(draw.drawn_at).toLocaleString(locale, { dateStyle: "long", timeStyle: "short" })}
+        </p>
+        <div className="mt-6 grid gap-4 md:grid-cols-3">
+          {draw.winners.map((w) => {
+            const prize = prizes.find((p) => p.rank === w.prize_rank);
+            const rankKey = `prize_rank_${Math.min(3, Math.max(1, w.prize_rank))}` as TKey;
+            const tone = w.prize_rank === 1 ? "text-gold" : w.prize_rank === 2 ? "text-silver" : "text-bronze";
+            return (
+              <article key={`${w.prize_rank}-${w.entry_number}`} className="rounded-xl border border-border bg-card-gradient p-5 shadow-card">
+                <p className={`font-mono text-xs font-semibold uppercase ${tone}`}>{t(rankKey)}</p>
+                <h3 className="mt-1 font-display text-lg font-bold">{tr(prize?.title ?? null, lang)}</h3>
+                <p className="mt-3 font-mono text-sm">#{String(w.entry_number).padStart(5, "0")}</p>
+                <p className="text-sm text-muted-foreground">{w.public_handle}</p>
+              </article>
+            );
+          })}
         </div>
       </section>
     );

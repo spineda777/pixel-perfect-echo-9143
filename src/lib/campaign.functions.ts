@@ -52,7 +52,7 @@ export const getRules = createServerFn({ method: "GET" }).handler(async () => {
   const sb = publicClient();
   const { data: campaign, error } = await sb
     .from("campaigns")
-    .select("id, title, rules_status, updated_at")
+    .select("id, title, mode, rules_status, updated_at")
     .eq("is_featured", true)
     .order("created_at", { ascending: true })
     .limit(1)

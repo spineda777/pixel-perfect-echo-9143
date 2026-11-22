@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { DrawPanel } from "@/components/admin-draw";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export const Route = createFileRoute("/_authenticated/admin")({
@@ -140,7 +141,7 @@ function AdminDashboard() {
         {d.stats?.is_demo && <p className="mt-2 font-mono text-xs text-warning">Demo mode: figures are demonstration data.</p>}
         <Tabs defaultValue="settings" className="mt-8">
           <TabsList className="flex-wrap">
-            {["settings", "packages", "prizes", "faq", "rules", "audit"].map((v) => <TabsTrigger key={v} value={v} className="capitalize">{v}</TabsTrigger>)}
+            {["settings", "packages", "prizes", "faq", "rules", "draw", "audit"].map((v) => <TabsTrigger key={v} value={v} className="capitalize">{v}</TabsTrigger>)}
           </TabsList>
           <TabsContent value="settings"><Settings c={d.c} onSaved={refresh} /></TabsContent>
           <TabsContent value="packages"><Packages rows={d.packages} onSaved={refresh} /></TabsContent>
@@ -150,6 +151,7 @@ function AdminDashboard() {
             <RulesStatus c={d.c} onSaved={refresh} />
             {d.rules.map((r) => <RuleEdit key={r.id} r={r} onSaved={refresh} />)}
           </TabsContent>
+          <TabsContent value="draw"><DrawPanel c={d.c} /></TabsContent>
           <TabsContent value="audit">
             <div className="overflow-x-auto rounded-lg border border-border">
               <table className="w-full text-sm">
@@ -277,11 +279,11 @@ function FaqEdit({ f, onSaved }: { f: Tables<"faqs">; onSaved: () => unknown }) 
 }
 
 function RulesStatus({ c, onSaved }: { c: Tables<"campaigns">; onSaved: () => unknown }) {
-  const published = c.rules_status === "published";
+  const published = c.rules_status === "approved";
   return (
     <Card>
       <label className="flex items-center gap-3 text-sm">
-        <Switch checked={published} onCheckedChange={(v) => run(() => supabase.from("campaigns").update({ rules_status: v ? "published" : "draft" }).eq("id", c.id), onSaved)} />
+        <Switch checked={published} onCheckedChange={(v) => run(() => supabase.from("campaigns").update({ rules_status: v ? "approved" : "draft" }).eq("id", c.id), onSaved)} />
         Rules approved by legal (removes the DRAFT label)
       </label>
     </Card>

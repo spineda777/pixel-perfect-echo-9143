@@ -24,10 +24,10 @@ export const Route = createFileRoute("/rules")({
 function RulesPage() {
   const { data } = useSuspenseQuery(rulesQuery);
   const { t, lang } = useI18n();
-  const isDraft = (data?.campaign.rules_status ?? "draft") !== "published";
+  const isDraft = (data?.campaign.rules_status ?? "draft") !== "approved";
   return (
     <div className="min-h-screen bg-background">
-      <DemoBanner />
+      {data?.campaign.mode !== "production" && <DemoBanner />}
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-4 py-14">
         <Link to="/" className="text-sm text-primary hover:underline">← {t("rules_back")}</Link>

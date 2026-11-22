@@ -1,6 +1,7 @@
 import { queryOptions } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { getFeaturedCampaign, getRules } from "./campaign.functions";
+import { getDrawResult } from "./entries.functions";
 
 export const featuredCampaignQuery = queryOptions({
   queryKey: ["campaign", "featured"],
@@ -52,5 +53,13 @@ export function publicEntriesQuery(campaignId: string, enabled: boolean) {
       return data ?? [];
     },
     refetchInterval: 30_000,
+  });
+}
+
+export function drawResultQuery(campaignId: string) {
+  return queryOptions({
+    queryKey: ["campaign", campaignId, "draw"],
+    queryFn: () => getDrawResult({ data: { campaignId } }),
+    staleTime: 60_000,
   });
 }
