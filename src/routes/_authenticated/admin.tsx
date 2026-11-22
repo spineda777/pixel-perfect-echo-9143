@@ -185,12 +185,12 @@ function Settings({ c, onSaved }: { c: Tables<"campaigns">; onSaved: () => unkno
     ends: utcToZonedInput(c.ends_at, c.timezone), demo: c.demo_entries_sold, price: c.unit_price_cents,
     inv: c.max_inventory, per: c.max_per_user, hero: c.hero_image_url,
   });
-  async function save() {
-    if (!isValidTimeZone(f.timezone)) return toast.error("Invalid time zone (e.g. America/New_York)");
-    if (f.inv < 1 || f.inv > HARD_MAX_INVENTORY) return toast.error(`Inventory must be 1–${HARD_MAX_INVENTORY}`);
-    if (f.per < 1 || f.per > HARD_MAX_PER_USER) return toast.error(`Per-account limit must be 1–${HARD_MAX_PER_USER}`);
+  async function save(): Promise<void> {
+    if (!isValidTimeZone(f.timezone)) { toast.error("Invalid time zone (e.g. America/New_York)"); return; }
+    if (f.inv < 1 || f.inv > HARD_MAX_INVENTORY) { toast.error(`Inventory must be 1–${HARD_MAX_INVENTORY}`); return; }
+    if (f.per < 1 || f.per > HARD_MAX_PER_USER) { toast.error(`Per-account limit must be 1–${HARD_MAX_PER_USER}`); return; }
     const ends = f.ends ? zonedInputToUtc(f.ends, f.timezone) : null;
-    if (f.ends && !ends) return toast.error("Invalid end date");
+    if (f.ends && !ends) { toast.error("Invalid end date"); return; }
     await run(() => supabase.from("campaigns").update({
       title: f.title, tagline: f.tagline, mode: f.mode, timezone: f.timezone, ends_at: ends?.toISOString() ?? null,
       demo_entries_sold: f.demo, unit_price_cents: f.price, max_inventory: f.inv, max_per_user: f.per, hero_image_url: f.hero,

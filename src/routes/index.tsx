@@ -155,7 +155,7 @@ function CampaignPage() {
   }
 
   function ProgressCard() {
-    const stats = useQuery({ ...statsQuery(campaign.id), initialData: data!.stats ?? undefined }).data;
+    const stats = useQuery({ ...statsQuery(campaign.id), initialData: data!.stats }).data;
     const sold = stats?.entries_sold ?? 0;
     const total = stats?.max_inventory ?? campaign.max_inventory;
     const pct = percentSold(sold, total);
@@ -181,7 +181,7 @@ function CampaignPage() {
   function PackagesSection() {
     const { locale } = useI18n();
     const { user } = useAuth();
-    const stats = useQuery({ ...statsQuery(campaign.id), initialData: data!.stats ?? undefined }).data;
+    const stats = useQuery({ ...statsQuery(campaign.id), initialData: data!.stats }).data;
     const allowance = useQuery(allowanceQuery(campaign.id, user?.id ?? null)).data;
     const [selected, setSelected] = useState<string | null>(packages.find((p) => p.is_recommended)?.id ?? null);
     const [open, setOpen] = useState(false);
