@@ -3,7 +3,6 @@ import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Check, ChevronDown, Lock, ShieldCheck, Trophy, Users } from "lucide-react";
 import heroAsset from "@/assets/hero-drop.jpg.asset.json";
-import consoleAsset from "@/assets/prize-console.jpg.asset.json";
 import gameAsset from "@/assets/prize-game.jpg.asset.json";
 import giftAsset from "@/assets/prize-giftcard.jpg.asset.json";
 import { allowanceQuery, drawResultQuery, featuredCampaignQuery, publicEntriesQuery, statsQuery } from "@/lib/campaign-queries";
@@ -35,7 +34,8 @@ export const Route = createFileRoute("/")({
   notFoundComponent: () => <div className="p-10 text-center">Campaign not found.</div>,
 });
 
-const PRIZE_FALLBACK = [consoleAsset.url, gameAsset.url, giftAsset.url];
+const GRAND_PRIZE_IMAGE = "/prize-grand.jpg";
+const PRIZE_FALLBACK = [GRAND_PRIZE_IMAGE, gameAsset.url, giftAsset.url];
 
 function CampaignPage() {
   const { data } = useSuspenseQuery(featuredCampaignQuery);
@@ -120,7 +120,7 @@ function CampaignPage() {
                 <div className="absolute -inset-4 rounded-3xl bg-primary/30 blur-3xl" aria-hidden />
                 <article className="relative overflow-hidden rounded-2xl border border-primary/50 bg-card-gradient shadow-glow">
                   <span className="absolute left-4 top-4 z-10 rounded bg-signal px-3 py-1 font-mono text-xs font-bold uppercase text-primary-foreground">{t("hero_grand_prize")}</span>
-                  <img src={grandImg} alt={tr(grand.title, lang)} className="aspect-[4/3] w-full object-cover" />
+                  <img src={grandImg} alt={tr(grand.title, lang)} className="aspect-[3/2] w-full object-cover" />
                   <div className="p-5">
                     <h2 className="font-display text-2xl font-bold">{tr(grand.title, lang)}</h2>
                     <p className="mt-1 text-sm text-muted-foreground">{tr(grand.description, lang)}</p>
@@ -129,12 +129,15 @@ function CampaignPage() {
                     )}
                   </div>
                 </article>
+                <div className="relative mt-4">
+                  <ProgressCard />
+                </div>
               </div>
             )}
           </div>
-          <div className="mt-10 grid gap-4 md:grid-cols-2">
+          <div className={`mt-10 grid gap-4 ${grand ? "" : "md:grid-cols-2"}`}>
             <CountdownCard />
-            <ProgressCard />
+            {!grand && <ProgressCard />}
           </div>
         </div>
       </section>
