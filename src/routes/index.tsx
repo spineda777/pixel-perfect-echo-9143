@@ -1,10 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Check, ChevronDown, Lock, ShieldCheck, Trophy, Users } from "lucide-react";
+import { Check, ChevronDown, Lock, Maximize2, ShieldCheck, Trophy, Users } from "lucide-react";
 import heroAsset from "@/assets/hero-drop.jpg.asset.json";
-import gameAsset from "@/assets/prize-game.jpg.asset.json";
-import giftAsset from "@/assets/prize-giftcard.jpg.asset.json";
 import { allowanceQuery, drawResultQuery, featuredCampaignQuery, publicEntriesQuery, statsQuery } from "@/lib/campaign-queries";
 import { formatMoney, formatNumber, getCountdown, packageAvailability, percentSold } from "@/lib/campaign-rules";
 import { tr, useI18n, type TKey } from "@/lib/i18n";
@@ -35,11 +33,12 @@ export const Route = createFileRoute("/")({
 });
 
 const GRAND_PRIZE_IMAGE = "/prize-grand.jpg";
-const PRIZE_FALLBACK = [GRAND_PRIZE_IMAGE, gameAsset.url, giftAsset.url];
+const PRIZE_FALLBACK = [GRAND_PRIZE_IMAGE, "/prize-2-gta.jpg", "/prize-3-giftcard.jpg"];
 
 function CampaignPage() {
   const { data } = useSuspenseQuery(featuredCampaignQuery);
   const { t, lang } = useI18n();
+  const [openPrizeId, setOpenPrizeId] = useState<string | null>(null);
   if (!data) {
     return (
       <div className="min-h-screen bg-background"><SiteHeader /><p className="p-16 text-center text-muted-foreground">{t("loading")}</p></div>
@@ -52,6 +51,7 @@ function CampaignPage() {
     <div className="min-h-screen bg-background text-foreground">
       <SiteHeader />
       <Hero />
+      <PrizeDialog />
       <main>
         <PackagesSection />
         <HowSection />
@@ -118,7 +118,7 @@ function CampaignPage() {
             {grand && (
               <div className="relative">
                 <div className="absolute -inset-4 rounded-3xl bg-primary/30 blur-3xl" aria-hidden />
-                <article className="relative overflow-hidden rounded-2xl border border-primary/50 bg-card-gradient shadow-glow">
+                <article role="button" tabIndex={0} onClick={() => setOpenPrizeId(grand.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenPrizeId(grand.id); } }} className="relative cursor-pointer overflow-hidden rounded-2xl border border-primary/50 bg-card-gradient shadow-glow transition hover:border-primary">
                   <span className="absolute left-4 top-4 z-10 rounded bg-signal px-3 py-1 font-mono text-xs font-bold uppercase text-primary-foreground">{t("hero_grand_prize")}</span>
                   <img src={grandImg} alt={tr(grand.title, lang)} className="aspect-[3/2] w-full object-cover" />
                   <div className="p-5">
@@ -319,13 +319,63 @@ function CampaignPage() {
     );
   }
 
+  function PrizeDialog() {
+    const prize = prizes.find((p) => p.id === openPrizeId) ?? null;
+    return (
+      <Dialog open={!!prize} onOpenChange={(o) => { if (!o) setOpenPrizeId(null); }}>
+        {prize && <PrizeDetail prize={prize} />}
+      </Dialog>
+    );
+  }
+
+  function PrizeDetail({ prize }: { prize: (typeof prizes)[number] }) {
+    const { locale } = useI18n();
+    const img = useMediaUrl(prize.image_url, PRIZE_FALLBACK[prize.rank - 1] ?? heroAsset.url);
+    const n = Math.min(3, Math.max(1, prize.rank));
+    const rankKey = `prize_rank_${n}` as TKey;
+    const detailKey = `prize_detail_${n}` as TKey;
+    const tone = prize.rank === 1 ? "text-gold" : prize.rank === 2 ? "text-silver" : "text-bronze";
+    return (
+      <DialogContent className="max-h-[92vh] w-[calc(100%-1.5rem)] max-w-3xl gap-0 overflow-y-auto p-0">
+        <div className="bg-black">
+          <img src={img} alt={tr(prize.title, lang)} className="mx-auto max-h-[55vh] w-full object-contain" />
+        </div>
+        <div className="p-6">
+          <DialogHeader className="text-left">
+            <p className={`font-mono text-xs font-semibold uppercase ${tone}`}>{t(rankKey)}</p>
+            <DialogTitle className="font-display text-2xl">{tr(prize.title, lang)}</DialogTitle>
+            <DialogDescription className="text-base">{tr(prize.description, lang)}</DialogDescription>
+          </DialogHeader>
+          <div className="mt-5 grid grid-cols-2 gap-3 font-mono text-xs">
+            <div className="rounded-lg border border-border bg-surface p-3">
+              <p className="text-muted-foreground">{prize.winner_count === 1 ? t("prize_winners") : t("prize_winners_plural")}</p>
+              <p className="mt-1 text-lg font-bold">{prize.winner_count}</p>
+            </div>
+            {prize.approx_value_cents != null && (
+              <div className="rounded-lg border border-border bg-surface p-3">
+                <p className="text-muted-foreground">{t("prize_value")}</p>
+                <p className="mt-1 text-lg font-bold">{formatMoney(prize.approx_value_cents, campaign.currency, locale)}</p>
+              </div>
+            )}
+          </div>
+          <div className="mt-5">
+            <p className="font-mono text-xs font-semibold uppercase text-primary">{t("prize_includes")}</p>
+            <p className="mt-2 flex items-start gap-2 text-sm"><Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />{t(detailKey)}</p>
+          </div>
+          <p className="mt-5 text-xs text-muted-foreground">{t("prize_details_note")}</p>
+          <Link to="/rules" className="mt-2 inline-block text-sm text-primary hover:underline">{t("rules_link_cta")} →</Link>
+        </div>
+      </DialogContent>
+    );
+  }
+
   function PrizeCard({ prize, featured }: { prize: (typeof prizes)[number]; featured?: boolean }) {
     const { locale } = useI18n();
     const img = useMediaUrl(prize.image_url, PRIZE_FALLBACK[prize.rank - 1] ?? heroAsset.url);
     const rankKey = (`prize_rank_${Math.min(3, Math.max(1, prize.rank))}`) as TKey;
     const tone = prize.rank === 1 ? "text-gold" : prize.rank === 2 ? "text-silver" : "text-bronze";
     return (
-      <article className={`overflow-hidden rounded-xl border bg-card-gradient shadow-card ${featured ? "border-primary/50 shadow-glow md:col-span-2 md:grid md:grid-cols-[1.1fr_1fr]" : "border-border"}`}>
+      <article role="button" tabIndex={0} onClick={() => setOpenPrizeId(prize.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenPrizeId(prize.id); } }} className={`cursor-pointer overflow-hidden rounded-xl border bg-card-gradient shadow-card transition hover:-translate-y-0.5 hover:border-primary/70 ${featured ? "border-primary/50 shadow-glow md:col-span-2 md:grid md:grid-cols-[1.1fr_1fr]" : "border-border"}`}>
         <img src={img} alt={tr(prize.title, lang)} loading="lazy" className={`w-full object-cover ${featured ? "aspect-[4/3] md:aspect-auto md:h-full" : "aspect-[4/3]"}`} />
         <div className={featured ? "flex flex-col justify-center p-6 md:p-10" : "p-5"}>
           <p className={`font-mono text-xs font-semibold uppercase ${tone}`}>{t(rankKey)}</p>
@@ -335,6 +385,7 @@ function CampaignPage() {
             <span>{prize.winner_count} {prize.winner_count === 1 ? t("prize_winners") : t("prize_winners_plural")}</span>
             {prize.approx_value_cents != null && <span>{t("prize_value")}: {formatMoney(prize.approx_value_cents, campaign.currency, locale)}</span>}
           </div>
+          <p className="mt-3 flex items-center gap-1.5 font-mono text-xs font-semibold text-primary"><Maximize2 className="h-3.5 w-3.5" />{t("prize_view_details")}</p>
         </div>
       </article>
     );

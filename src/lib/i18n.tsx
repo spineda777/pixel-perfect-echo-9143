@@ -92,6 +92,12 @@ const en = {
   prize_winners: "winner",
   prize_winners_plural: "winners",
   prize_value: "Approx. value",
+  prize_view_details: "View details",
+  prize_includes: "What's included",
+  prize_detail_1: "A PlayStation 5 Pro console and a copy of Grand Theft Auto VI.",
+  prize_detail_2: "A copy of Grand Theft Auto VI. The winner can choose a physical or digital edition, subject to availability.",
+  prize_detail_3: "A $50 gift card. The winner can choose PlayStation Store or Steam.",
+  prize_details_note: "Delivery, eligibility and conditions are described in the Official Rules.",
   prizes_conditions: "Conditions apply — see the Official Rules.",
   entries_eyebrow: "Transparency",
   entries_title: "Entry list",
@@ -218,6 +224,12 @@ const es: Dict = {
   prize_winners: "ganador",
   prize_winners_plural: "ganadores",
   prize_value: "Valor aprox.",
+  prize_view_details: "Ver detalles",
+  prize_includes: "Qué incluye",
+  prize_detail_1: "Una consola PlayStation 5 Pro y una copia de Grand Theft Auto VI.",
+  prize_detail_2: "Una copia de Grand Theft Auto VI. El ganador puede elegir edición física o digital, sujeto a disponibilidad.",
+  prize_detail_3: "Una tarjeta de regalo de $50. El ganador puede elegir PlayStation Store o Steam.",
+  prize_details_note: "La entrega, los requisitos y las condiciones están descritos en las Bases Oficiales.",
   prizes_conditions: "Aplican condiciones — consulta las Bases Oficiales.",
   entries_eyebrow: "Transparencia",
   entries_title: "Lista de participaciones",
@@ -342,6 +354,12 @@ const pt: Dict = {
   prize_winners: "vencedor",
   prize_winners_plural: "vencedores",
   prize_value: "Valor aprox.",
+  prize_view_details: "Ver detalhes",
+  prize_includes: "O que está incluso",
+  prize_detail_1: "Um console PlayStation 5 Pro e uma cópia de Grand Theft Auto VI.",
+  prize_detail_2: "Uma cópia de Grand Theft Auto VI. O vencedor pode escolher a edição física ou digital, sujeito à disponibilidade.",
+  prize_detail_3: "Um cartão-presente de $50. O vencedor pode escolher PlayStation Store ou Steam.",
+  prize_details_note: "Entrega, elegibilidade e condições estão descritas no Regulamento Oficial.",
   prizes_conditions: "Sujeito a condições — consulte o Regulamento Oficial.",
   entries_eyebrow: "Transparência",
   entries_title: "Lista de participações",
@@ -413,9 +431,6 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       setLangState(stored);
       return;
     }
-    const nav = window.navigator.language.toLowerCase();
-    if (nav.startsWith("es")) setLangState("es");
-    else if (nav.startsWith("pt")) setLangState("pt");
   }, []);
 
   useEffect(() => {
