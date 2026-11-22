@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { rulesQuery } from "@/lib/campaign-queries";
 import { tr, useI18n } from "@/lib/i18n";
-import { DemoBanner, SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 
 export const Route = createFileRoute("/rules")({
   head: () => ({
@@ -27,7 +27,6 @@ function RulesPage() {
   const isDraft = (data?.campaign.rules_status ?? "draft") !== "approved";
   return (
     <div className="min-h-screen bg-background">
-      {data?.campaign.mode !== "production" && <DemoBanner />}
       <SiteHeader />
       <main className="mx-auto max-w-4xl px-4 py-14">
         <Link to="/" className="text-sm text-primary hover:underline">← {t("rules_back")}</Link>

@@ -11,7 +11,7 @@ import { formatMoney, formatNumber, getCountdown, packageAvailability, percentSo
 import { tr, useI18n, type TKey } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { useMediaUrl } from "@/hooks/use-media-url";
-import { DemoBanner, SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { Button } from "@/components/ui/button";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -50,7 +50,6 @@ function CampaignPage() {
 
   return (
     <div className="min-h-screen bg-background text-foreground">
-      {isDemo && <DemoBanner />}
       <SiteHeader />
       <Hero />
       <main>
@@ -70,9 +69,8 @@ function CampaignPage() {
               </AccordionItem>
             ))}
           </Accordion>
-          <div className="mt-8 rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm">
-            {campaign.rules_status !== "approved" && <p className="font-mono text-xs font-semibold text-warning">{t("rules_draft")}</p>}
-            <Link to="/rules" className="mt-1 inline-block text-primary hover:underline">{t("rules_link_cta")} →</Link>
+          <div className="mt-8 text-sm">
+            <Link to="/rules" className="inline-block text-primary hover:underline">{t("rules_link_cta")} →</Link>
           </div>
         </section>
       </main>
@@ -82,32 +80,59 @@ function CampaignPage() {
 
   function Hero() {
     const heroUrl = useMediaUrl(campaign.hero_image_url, heroAsset.url);
+    const grand = prizes.find((p) => p.rank === 1) ?? prizes[0];
+    const grandImg = useMediaUrl(grand?.image_url ?? null, PRIZE_FALLBACK[0] ?? heroAsset.url);
+    const { locale } = useI18n();
     return (
       <section className="relative overflow-hidden border-b border-border">
-        <img src={heroUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-60" />
+        <img src={heroUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />
         <div className="absolute inset-0 bg-fade-left" />
         <div className="absolute inset-0 bg-fade-bottom" />
-        <div className="relative mx-auto grid max-w-7xl gap-10 px-4 py-16 md:py-24 lg:grid-cols-[1.3fr_1fr] lg:items-end">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="eyebrow">{t("hero_eyebrow")}</span>
-              <span className={`rounded px-2 py-0.5 font-mono text-[10px] font-semibold ${isDemo ? "bg-warning text-warning-foreground" : "bg-success text-background"}`}>
-                {isDemo ? t("status_demo") : t("status_live")}
-              </span>
+        <div className="relative mx-auto max-w-7xl px-4 py-12 md:py-20">
+          <div className="grid items-center gap-10 lg:grid-cols-[1.05fr_1fr]">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="eyebrow">{t("hero_eyebrow")}</span>
+                {!isDemo && (
+                  <span className="rounded bg-success px-2 py-0.5 font-mono text-[10px] font-semibold text-background">{t("status_live")}</span>
+                )}
+              </div>
+              <h1 className="mt-4 font-display text-4xl font-extrabold leading-[1.05] tracking-tight md:text-6xl">{tr(campaign.title, lang)}</h1>
+              <p className="mt-4 max-w-xl text-lg text-muted-foreground">{tr(campaign.tagline, lang)}</p>
+              {grand && (
+                <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-4 py-1.5 font-mono text-xs font-semibold uppercase text-gold">
+                  <Trophy className="h-4 w-4" />
+                  {t("hero_grand_prize")}: {tr(grand.title, lang)}
+                </div>
+              )}
+              <div className="mt-6 flex flex-wrap gap-4 font-mono text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5"><Trophy className="h-4 w-4 text-gold" />{t("hero_winners")}</span>
+                <span className="flex items-center gap-1.5"><Users className="h-4 w-4 text-primary" />{formatNumber(campaign.max_inventory, "en-US")} {t("hero_max_entries")}</span>
+                <span className="flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-primary" />{campaign.max_per_user} {t("hero_per_account")}</span>
+              </div>
+              <div className="mt-8 flex flex-wrap gap-3">
+                <Button asChild size="lg" className="bg-signal shadow-glow"><a href="#packages">{t("hero_cta_packages")}</a></Button>
+                <Button asChild size="lg" variant="outline"><a href="#prizes">{t("hero_cta_prizes")}</a></Button>
+              </div>
             </div>
-            <h1 className="mt-4 font-display text-4xl font-extrabold leading-[1.05] tracking-tight md:text-6xl">{tr(campaign.title, lang)}</h1>
-            <p className="mt-4 max-w-xl text-lg text-muted-foreground">{tr(campaign.tagline, lang)}</p>
-            <div className="mt-6 flex flex-wrap gap-4 font-mono text-xs text-muted-foreground">
-              <span className="flex items-center gap-1.5"><Trophy className="h-4 w-4 text-gold" />{t("hero_winners")}</span>
-              <span className="flex items-center gap-1.5"><Users className="h-4 w-4 text-primary" />{formatNumber(campaign.max_inventory, "en-US")} {t("hero_max_entries")}</span>
-              <span className="flex items-center gap-1.5"><ShieldCheck className="h-4 w-4 text-primary" />{campaign.max_per_user} {t("hero_per_account")}</span>
-            </div>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Button asChild size="lg" className="bg-signal shadow-glow"><a href="#packages">{t("hero_cta_packages")}</a></Button>
-              <Button asChild size="lg" variant="outline"><a href="#prizes">{t("hero_cta_prizes")}</a></Button>
-            </div>
+            {grand && (
+              <div className="relative">
+                <div className="absolute -inset-4 rounded-3xl bg-primary/30 blur-3xl" aria-hidden />
+                <article className="relative overflow-hidden rounded-2xl border border-primary/50 bg-card-gradient shadow-glow">
+                  <span className="absolute left-4 top-4 z-10 rounded bg-signal px-3 py-1 font-mono text-xs font-bold uppercase text-primary-foreground">{t("hero_grand_prize")}</span>
+                  <img src={grandImg} alt={tr(grand.title, lang)} className="aspect-[4/3] w-full object-cover" />
+                  <div className="p-5">
+                    <h2 className="font-display text-2xl font-bold">{tr(grand.title, lang)}</h2>
+                    <p className="mt-1 text-sm text-muted-foreground">{tr(grand.description, lang)}</p>
+                    {grand.approx_value_cents != null && (
+                      <p className="mt-3 font-mono text-xs text-muted-foreground">{t("prize_value")}: {formatMoney(grand.approx_value_cents, campaign.currency, locale)}</p>
+                    )}
+                  </div>
+                </article>
+              </div>
+            )}
           </div>
-          <div className="space-y-4">
+          <div className="mt-10 grid gap-4 md:grid-cols-2">
             <CountdownCard />
             <ProgressCard />
           </div>
@@ -174,7 +199,6 @@ function CampaignPage() {
           <div><p className="text-muted-foreground">{t("progress_total")}</p><p className="text-sm font-semibold">{formatNumber(total, "en-US")}</p></div>
           <div><p className="text-muted-foreground">{t("progress_remaining")}</p><p className="text-sm font-semibold">{formatNumber(Math.max(0, total - sold), "en-US")}</p></div>
         </div>
-        {stats?.is_demo && <p className="mt-3 font-mono text-[10px] text-warning">{t("demo_data")}</p>}
       </div>
     );
   }
@@ -284,25 +308,25 @@ function CampaignPage() {
       <section id="prizes" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-20">
         <p className="eyebrow">{t("prizes_eyebrow")}</p>
         <h2 className="mt-2 font-display text-3xl font-bold">{t("prizes_title")}</h2>
-        <div className="mt-10 grid gap-6 md:grid-cols-3">
-          {prizes.map((p) => <PrizeCard key={p.id} prize={p} />)}
+        <div className="mt-10 grid gap-6 md:grid-cols-2">
+          {prizes.map((p, i) => <PrizeCard key={p.id} prize={p} featured={i === 0} />)}
         </div>
         <p className="mt-6 text-xs text-muted-foreground">{t("prizes_conditions")}</p>
       </section>
     );
   }
 
-  function PrizeCard({ prize }: { prize: (typeof prizes)[number] }) {
+  function PrizeCard({ prize, featured }: { prize: (typeof prizes)[number]; featured?: boolean }) {
     const { locale } = useI18n();
     const img = useMediaUrl(prize.image_url, PRIZE_FALLBACK[prize.rank - 1] ?? heroAsset.url);
     const rankKey = (`prize_rank_${Math.min(3, Math.max(1, prize.rank))}`) as TKey;
     const tone = prize.rank === 1 ? "text-gold" : prize.rank === 2 ? "text-silver" : "text-bronze";
     return (
-      <article className="overflow-hidden rounded-xl border border-border bg-card-gradient shadow-card">
-        <img src={img} alt={tr(prize.title, lang)} loading="lazy" className="aspect-[4/3] w-full object-cover" />
-        <div className="p-5">
+      <article className={`overflow-hidden rounded-xl border bg-card-gradient shadow-card ${featured ? "border-primary/50 shadow-glow md:col-span-2 md:grid md:grid-cols-[1.1fr_1fr]" : "border-border"}`}>
+        <img src={img} alt={tr(prize.title, lang)} loading="lazy" className={`w-full object-cover ${featured ? "aspect-[4/3] md:aspect-auto md:h-full" : "aspect-[4/3]"}`} />
+        <div className={featured ? "flex flex-col justify-center p-6 md:p-10" : "p-5"}>
           <p className={`font-mono text-xs font-semibold uppercase ${tone}`}>{t(rankKey)}</p>
-          <h3 className="mt-1 font-display text-xl font-bold">{tr(prize.title, lang)}</h3>
+          <h3 className={`mt-1 font-display font-bold ${featured ? "text-3xl" : "text-xl"}`}>{tr(prize.title, lang)}</h3>
           <p className="mt-2 text-sm text-muted-foreground">{tr(prize.description, lang)}</p>
           <div className="mt-4 flex justify-between font-mono text-xs text-muted-foreground">
             <span>{prize.winner_count} {prize.winner_count === 1 ? t("prize_winners") : t("prize_winners_plural")}</span>
@@ -315,12 +339,7 @@ function CampaignPage() {
 
   function EntriesSection() {
     const real = useQuery(publicEntriesQuery(campaign.id, !isDemo)).data ?? [];
-    const sample = Array.from({ length: 8 }, (_, i) => ({
-      entry_number: 10650 - i * 37,
-      public_handle: `Player_${(7341 + i * 919).toString(36).toUpperCase()}`,
-      status: "sample",
-    }));
-    const rows = isDemo ? sample : real;
+    const rows = real;
     const [showAll, setShowAll] = useState(false);
     const visible = showAll ? rows : rows.slice(0, 5);
     return (
@@ -329,7 +348,6 @@ function CampaignPage() {
           <p className="eyebrow">{t("entries_eyebrow")}</p>
           <h2 className="mt-2 font-display text-3xl font-bold">{t("entries_title")}</h2>
           <p className="mt-2 text-sm text-muted-foreground">{t("entries_sub")}</p>
-          {isDemo && <p className="mt-3 font-mono text-xs text-warning">{t("entries_sample")}</p>}
           {rows.length === 0 ? (
             <p className="mt-8 rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">{t("entries_empty")}</p>
           ) : (
