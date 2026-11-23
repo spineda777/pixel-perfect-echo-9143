@@ -10,9 +10,9 @@ import { Label } from "@/components/ui/label";
 import { LangSwitch } from "@/components/site-chrome";
 
 export const Route = createFileRoute("/auth")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    packageId: typeof search.packageId === "string" ? search.packageId : undefined,
-    checkout: search.checkout === true || search.checkout === "true",
+  validateSearch: (search: Record<string, unknown>): { packageId?: string | undefined; checkout?: boolean | undefined } => ({
+    packageId: typeof search["packageId"] === "string" ? (search["packageId"] as string) : undefined,
+    checkout: search["checkout"] === true || search["checkout"] === "true" ? true : undefined,
   }),
   head: () => ({
     meta: [

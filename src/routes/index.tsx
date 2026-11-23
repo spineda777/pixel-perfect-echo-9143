@@ -19,9 +19,9 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    packageId: typeof search.packageId === "string" ? search.packageId : undefined,
-    checkout: search.checkout === true || search.checkout === "true",
+  validateSearch: (search: Record<string, unknown>): { packageId?: string | undefined; checkout?: boolean | undefined } => ({
+    packageId: typeof search["packageId"] === "string" ? (search["packageId"] as string) : undefined,
+    checkout: search["checkout"] === true || search["checkout"] === "true" ? true : undefined,
   }),
   head: () => ({
     meta: [
@@ -222,7 +222,7 @@ function CampaignPage() {
     const stats = useQuery({ ...statsQuery(campaign.id), initialData: data!.stats }).data;
     const allowance = useQuery(allowanceQuery(campaign.id, user?.id ?? null)).data;
     const [selected, setSelected] = useState<string | null>(
-      search.packageId || packages.find((p) => p.is_recommended)?.id ?? null
+      search.packageId ?? packages.find((p) => p.is_recommended)?.id ?? null
     );
     const [open, setOpen] = useState(Boolean(search.checkout && search.packageId));
 

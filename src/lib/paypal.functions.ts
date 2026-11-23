@@ -84,7 +84,7 @@ export const capturePaypalOrder = createServerFn({ method: "POST" })
         const { sendOrderConfirmationEmail } = await import("./resend.server");
         await sendOrderConfirmationEmail({
           to: recipientEmail,
-          recipientName: payerName || u?.user?.user_metadata?.full_name || undefined,
+          recipientName: payerName || u?.user?.user_metadata?.["full_name"] || undefined,
           orderCode: order.order_code,
           campaignTitle: "GTA VI Legendary Drop",
           entriesCount: order.entries_count,
@@ -106,6 +106,9 @@ export const simulateDemoOrder = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { allocateEntriesForUser } = await import("./entries.server");
+    // Server-side guard: simulated orders create real entries, so only admins may run them.
+    const { data: isAdmin } = await context.supabase.rpc("has_role", { _user_id: context.userId, _role: "admin" });
+    if (!isAdmin) throw new Error("Forbidden");
     const { data: pkg } = await supabaseAdmin
       .from("campaign_packages")
       .select("id, entries, price_cents, is_active, campaign_id, campaigns(mode, currency)")
@@ -154,7 +157,7 @@ export const simulateDemoOrder = createServerFn({ method: "POST" })
         const { sendOrderConfirmationEmail } = await import("./resend.server");
         await sendOrderConfirmationEmail({
           to: u.user.email,
-          recipientName: u?.user?.user_metadata?.full_name || "Gamer",
+          recipientName: u?.user?.user_metadata?.["full_name"] || "Gamer",
           orderCode: order.order_code,
           campaignTitle: "GTA VI Legendary Drop (Demo)",
           entriesCount: pkg.entries,
