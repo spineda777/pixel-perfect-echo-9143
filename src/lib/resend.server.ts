@@ -10,6 +10,30 @@ export interface SendEmailOptions {
   from?: string;
 }
 
+/** Finds the Resend key even if the secret name has stray spaces/case, or if only the value (re_...) is recognizable. */
+function resolveResendKey(): string | undefined {
+  const env = process.env;
+  const direct = env["RESEND_API_KEY"]?.trim();
+  if (direct) return direct;
+  for (const [k, v] of Object.entries(env)) {
+    if (
+      v &&
+      k
+        .trim()
+        .toUpperCase()
+        .replace(/[\s-]+/g, "_") === "RESEND_API_KEY"
+    )
+      return v.trim();
+  }
+  for (const [k, v] of Object.entries(env)) {
+    if (v && /^re_[A-Za-z0-9_]{20,}$/.test(v.trim())) {
+      console.warn(`Using Resend key found under env name "${k}"`);
+      return v.trim();
+    }
+  }
+  return undefined;
+}
+
 export async function sendEmail({
   to,
   subject,
@@ -18,28 +42,27 @@ export async function sendEmail({
   from = "Respawn Club <notifications@flowsights.it.com>",
 }: SendEmailOptions) {
   const lk = process.env["LOVABLE_API_KEY"];
-  const rk = process.env["RESEND_API_KEY"];
+  const rk = resolveResendKey();
 
-  const isDirectResendKey = rk && rk.startsWith("re_");
-  const url = isDirectResendKey || !lk
-    ? "https://api.resend.com/emails"
-    : `${GATEWAY_URL}/emails`;
+  if (!rk) {
+    const names = Object.keys(process.env).filter((k) => /resend/i.test(k));
+    const msg = `RESEND_API_KEY is not visible to the server (env names containing "resend": ${names.length ? names.join(", ") : "none"}). Save the secret as RESEND_API_KEY and publish again.`;
+    console.warn(msg);
+    return { ok: false, error: msg };
+  }
+
+  const isDirectResendKey = rk.startsWith("re_");
+  const url = isDirectResendKey || !lk ? "https://api.resend.com/emails" : `${GATEWAY_URL}/emails`;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
   };
 
   if (isDirectResendKey || !lk) {
-    if (!rk) {
-      console.warn("RESEND_API_KEY is not configured");
-      return { ok: false, error: "RESEND_API_KEY is not configured" };
-    }
     headers["Authorization"] = `Bearer ${rk}`;
   } else {
     headers["Authorization"] = `Bearer ${lk}`;
-    if (rk) {
-      headers["X-Connection-Api-Key"] = rk;
-    }
+    headers["X-Connection-Api-Key"] = rk;
   }
 
   try {
