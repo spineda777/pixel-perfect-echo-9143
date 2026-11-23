@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { pickWinners, secureRandomInt, type DrawEntry, type DrawPrize } from "./draw";
+import {
+  isTestEntry,
+  pickWinners,
+  secureRandomInt,
+  TEST_ORDER_MARKER,
+  type DrawEntry,
+  type DrawPrize,
+} from "./draw";
 
 const prizes: DrawPrize[] = [
   { id: "p3", rank: 3, winner_count: 1 },
@@ -56,5 +63,14 @@ describe("secureRandomInt", () => {
   });
   it("rejects invalid max", () => {
     expect(() => secureRandomInt(0)).toThrow();
+  });
+});
+
+describe("isTestEntry", () => {
+  it("flags entries from simulated orders only", () => {
+    expect(isTestEntry({ orders: { paypal_capture_id: TEST_ORDER_MARKER } })).toBe(true);
+    expect(isTestEntry({ orders: { paypal_capture_id: "5AB12345X" } })).toBe(false);
+    expect(isTestEntry({ orders: null })).toBe(false);
+    expect(isTestEntry({})).toBe(false);
   });
 });

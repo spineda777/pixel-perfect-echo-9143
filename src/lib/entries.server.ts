@@ -2,6 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Database, Json } from "@/integrations/supabase/types";
+import { isTestEntry } from "./draw";
 
 export async function assertAdmin(sb: SupabaseClient<Database>, userId: string): Promise<void> {
   const { data, error } = await sb
@@ -69,13 +70,17 @@ export async function loadAllValidEntries(campaignId: string) {
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabaseAdmin
       .from("entries")
-      .select("id, entry_number, user_id")
+      .select("id, entry_number, user_id, orders(paypal_capture_id)")
       .eq("campaign_id", campaignId)
       .eq("status", "valid")
       .order("entry_number")
       .range(from, from + 999);
     if (error) throw new Error(error.message);
-    out.push(...(data ?? []));
+    // Entries from admin test simulations are never eligible for the draw.
+    for (const e of data ?? []) {
+      if (isTestEntry(e as unknown as Parameters<typeof isTestEntry>[0])) continue;
+      out.push({ id: e.id, entry_number: e.entry_number, user_id: e.user_id });
+    }
     if (!data || data.length < 1000) break;
   }
   return out;

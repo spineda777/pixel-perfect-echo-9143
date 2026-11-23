@@ -50,3 +50,12 @@ export function pickWinners(
   }
   return winners;
 }
+
+/** Orders created by the admin test simulation carry this capture id; their entries never take part in the draw. */
+export const TEST_ORDER_MARKER = "DEMO_SIMULATION";
+
+export function isTestEntry(entry: {
+  orders?: { paypal_capture_id: string | null } | null;
+}): boolean {
+  return entry.orders?.paypal_capture_id === TEST_ORDER_MARKER;
+}
