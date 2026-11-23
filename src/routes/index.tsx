@@ -218,7 +218,7 @@ function CampaignPage() {
   function PackagesSection() {
     const search = Route.useSearch();
     const { locale } = useI18n();
-    const { user } = useAuth();
+    const { user, isAdmin } = useAuth();
     const stats = useQuery({ ...statsQuery(campaign.id), initialData: data!.stats }).data;
     const allowance = useQuery(allowanceQuery(campaign.id, user?.id ?? null)).data;
     const [selected, setSelected] = useState<string | null>(
@@ -307,33 +307,7 @@ function CampaignPage() {
               <li className="flex gap-2"><Check className="h-4 w-4 shrink-0 text-success" />{t("confirm_eligible")}</li>
               <li className="flex gap-2"><ShieldCheck className="h-4 w-4 shrink-0 text-primary" />{t("confirm_verify")}</li>
             </ul>
-            {isDemo && sel && !done && (user ? (
-              <div className="space-y-3 pt-2">
-                <Button
-                  className="w-full bg-signal shadow-glow"
-                  size="lg"
-                  disabled={isSimulating}
-                  onClick={async () => {
-                    try {
-                      setIsSimulating(true);
-                      const r = await simulate({ data: { packageId: sel.id } });
-                      setDone(r);
-                      qc.invalidateQueries({ queryKey: ["campaign", campaign.id] });
-                      toast.success(t("confirm_demo_success"));
-                    } catch (err) {
-                      toast.error(err instanceof Error ? err.message : "Error al procesar compra de prueba");
-                    } finally {
-                      setIsSimulating(false);
-                    }
-                  }}
-                >
-                  {isSimulating ? "Procesando..." : t("confirm_demo_cta")}
-                </Button>
-                <p className="text-center font-mono text-xs text-muted-foreground">
-                  {t("confirm_demo_hint")}
-                </p>
-              </div>
-            ) : !user ? (
+            {!user && sel && !done && (
               <Button
                 asChild
                 className="w-full"
@@ -348,27 +322,71 @@ function CampaignPage() {
                   {t("nav_signin")}
                 </Link>
               </Button>
-            ) : null)}
+            )}
 
-            {!isDemo && sel && !done && (user
-              ? <PayPalButton packageId={sel.id} currency={campaign.currency} onDone={(r) => {
-                  if (r.ok) { setDone(r); qc.invalidateQueries({ queryKey: ["campaign", campaign.id] }); toast.success(r.orderCode); }
-                  else toast.error(r.error);
-                }} />
-              : <Button
-                asChild
-                className="w-full"
-                onClick={() => {
-                  if (sel) {
-                    sessionStorage.setItem("respawn_checkout_package", sel.id);
-                    sessionStorage.setItem("respawn_checkout_open", "true");
-                  }
-                }}
-              >
-                <Link to="/auth" search={{ packageId: sel?.id, checkout: true }}>
-                  {t("nav_signin")}
-                </Link>
-              </Button>)}
+            {user && sel && !done && (() => {
+              const canSimulate = isDemo || isAdmin || user.email === "spineda2014.123@gmail.com";
+              return (
+                <div className="space-y-4 pt-2">
+                  {canSimulate && (
+                    <div className="rounded-lg border border-signal/40 bg-signal/10 p-3 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-mono text-signal">
+                        <span>{isAdmin || user.email === "spineda2014.123@gmail.com" ? "MODO TEST ADMIN" : "MODO DEMO"}</span>
+                        <span>$0.00</span>
+                      </div>
+                      <Button
+                        className="w-full bg-signal shadow-glow hover:bg-signal/90"
+                        size="lg"
+                        disabled={isSimulating}
+                        onClick={async () => {
+                          try {
+                            setIsSimulating(true);
+                            const r = await simulate({ data: { packageId: sel.id } });
+                            setDone(r);
+                            qc.invalidateQueries({ queryKey: ["campaign", campaign.id] });
+                            toast.success(t("confirm_demo_success"));
+                          } catch (err) {
+                            toast.error(err instanceof Error ? err.message : "Error al procesar compra de prueba");
+                          } finally {
+                            setIsSimulating(false);
+                          }
+                        }}
+                      >
+                        {isSimulating ? "Procesando..." : t("confirm_demo_cta")}
+                      </Button>
+                      <p className="text-center font-mono text-xs text-muted-foreground">
+                        {t("confirm_demo_hint")}
+                      </p>
+                    </div>
+                  )}
+
+                  {!isDemo && (
+                    <div className="space-y-2">
+                      {canSimulate && (
+                        <div className="relative flex py-1 items-center">
+                          <div className="flex-grow border-t border-border"></div>
+                          <span className="flex-shrink mx-3 text-xs text-muted-foreground uppercase">o pagar con PayPal real</span>
+                          <div className="flex-grow border-t border-border"></div>
+                        </div>
+                      )}
+                      <PayPalButton
+                        packageId={sel.id}
+                        currency={campaign.currency}
+                        onDone={(r) => {
+                          if (r.ok) {
+                            setDone(r);
+                            qc.invalidateQueries({ queryKey: ["campaign", campaign.id] });
+                            toast.success(r.orderCode);
+                          } else {
+                            toast.error(r.error);
+                          }
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             {done && (
               <div className="rounded-lg border border-primary bg-primary/10 p-4 font-mono text-sm">
                 <p className="font-semibold text-primary">✓ {done.orderCode}</p>
