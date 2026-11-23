@@ -10,6 +10,9 @@ import { useAuth } from "@/hooks/use-auth";
 import { useMediaUrl } from "@/hooks/use-media-url";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { Button } from "@/components/ui/button";
+import { PayPalButton } from "@/components/paypal-button";
+import { useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
@@ -213,6 +216,8 @@ function CampaignPage() {
     const allowance = useQuery(allowanceQuery(campaign.id, user?.id ?? null)).data;
     const [selected, setSelected] = useState<string | null>(packages.find((p) => p.is_recommended)?.id ?? null);
     const [open, setOpen] = useState(false);
+    const [done, setDone] = useState<{ orderCode: string; first: number | null; last: number | null } | null>(null);
+    const qc = useQueryClient();
     const campaignRemaining = stats?.remaining ?? campaign.max_inventory;
     const personalRemaining = allowance?.remaining ?? campaign.max_per_user;
     const sel = packages.find((p) => p.id === selected) ?? null;
@@ -278,7 +283,19 @@ function CampaignPage() {
               <li className="flex gap-2"><Check className="h-4 w-4 shrink-0 text-success" />{t("confirm_eligible")}</li>
               <li className="flex gap-2"><ShieldCheck className="h-4 w-4 shrink-0 text-primary" />{t("confirm_verify")}</li>
             </ul>
-            <DialogFooter><Button onClick={() => setOpen(false)}>{t("confirm_close")}</Button></DialogFooter>
+            {!isDemo && sel && !done && (user
+              ? <PayPalButton packageId={sel.id} currency={campaign.currency} onDone={(r) => {
+                  if (r.ok) { setDone(r); qc.invalidateQueries({ queryKey: ["campaign", campaign.id] }); toast.success(r.orderCode); }
+                  else toast.error(r.error);
+                }} />
+              : <Button asChild className="w-full"><Link to="/auth">Sign in</Link></Button>)}
+            {done && (
+              <div className="rounded-lg border border-primary bg-primary/10 p-4 font-mono text-sm">
+                <p className="font-semibold">✓ {done.orderCode}</p>
+                <p>#{String(done.first).padStart(5, "0")} – #{String(done.last).padStart(5, "0")}</p>
+              </div>
+            )}
+            <DialogFooter><Button variant="outline" onClick={() => { setOpen(false); setDone(null); }}>{t("confirm_close")}</Button></DialogFooter>
           </DialogContent>
         </Dialog>
       </section>
@@ -408,12 +425,13 @@ function CampaignPage() {
             <div className="mt-6 overflow-hidden rounded-xl border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-surface-raised font-mono text-xs text-muted-foreground">
-                  <tr><th className="p-3 text-left">{t("entries_col_number")}</th><th className="p-3 text-left">{t("entries_col_player")}</th><th className="p-3 text-right">{t("entries_col_status")}</th></tr>
+                  <tr><th className="p-3 text-left">{t("entries_col_number")}</th><th className="p-3 text-left">ID</th><th className="p-3 text-left">{t("entries_col_player")}</th><th className="p-3 text-right">{t("entries_col_status")}</th></tr>
                 </thead>
                 <tbody>
                   {visible.map((r) => (
                     <tr key={r.entry_number} className="border-t border-border">
                       <td className="p-3 font-mono">#{String(r.entry_number).padStart(5, "0")}</td>
+                      <td className="p-3 font-mono text-xs">{r.order_code ?? "—"}</td>
                       <td className="p-3">{r.public_handle}</td>
                       <td className="p-3 text-right font-mono text-xs">{r.status === "sample" ? t("entries_status_sample") : t("entries_status_valid")}</td>
                     </tr>

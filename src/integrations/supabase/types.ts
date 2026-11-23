@@ -160,6 +160,7 @@ export type Database = {
           created_at: string
           entry_number: number
           id: string
+          order_id: string | null
           status: string
           user_id: string
         }
@@ -168,6 +169,7 @@ export type Database = {
           created_at?: string
           entry_number: number
           id?: string
+          order_id?: string | null
           status?: string
           user_id: string
         }
@@ -176,6 +178,7 @@ export type Database = {
           created_at?: string
           entry_number?: number
           id?: string
+          order_id?: string | null
           status?: string
           user_id?: string
         }
@@ -185,6 +188,13 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "entries_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
             referencedColumns: ["id"]
           },
         ]
@@ -223,6 +233,81 @@ export type Database = {
             columns: ["campaign_id"]
             isOneToOne: false
             referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          amount_cents: number
+          campaign_id: string
+          completed_at: string | null
+          created_at: string
+          currency: string
+          entries_count: number
+          first_entry_number: number | null
+          id: string
+          last_entry_number: number | null
+          order_code: string
+          package_id: string | null
+          payer_email: string | null
+          payer_name: string | null
+          paypal_capture_id: string | null
+          paypal_order_id: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          amount_cents: number
+          campaign_id: string
+          completed_at?: string | null
+          created_at?: string
+          currency?: string
+          entries_count: number
+          first_entry_number?: number | null
+          id?: string
+          last_entry_number?: number | null
+          order_code?: string
+          package_id?: string | null
+          payer_email?: string | null
+          payer_name?: string | null
+          paypal_capture_id?: string | null
+          paypal_order_id?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          amount_cents?: number
+          campaign_id?: string
+          completed_at?: string | null
+          created_at?: string
+          currency?: string
+          entries_count?: number
+          first_entry_number?: number | null
+          id?: string
+          last_entry_number?: number | null
+          order_code?: string
+          package_id?: string | null
+          payer_email?: string | null
+          payer_name?: string | null
+          paypal_capture_id?: string | null
+          paypal_order_id?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orders_campaign_id_fkey"
+            columns: ["campaign_id"]
+            isOneToOne: false
+            referencedRelation: "campaigns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "campaign_packages"
             referencedColumns: ["id"]
           },
         ]
@@ -358,6 +443,7 @@ export type Database = {
           created_at: string
           entry_number: number
           id: string
+          order_id: string | null
           status: string
           user_id: string
         }[]
@@ -392,6 +478,7 @@ export type Database = {
         Returns: {
           created_at: string
           entry_number: number
+          order_code: string
           public_handle: string
           status: string
         }[]
