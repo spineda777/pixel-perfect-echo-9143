@@ -93,6 +93,14 @@ export const createPaypalOrder = createServerFn({ method: "POST" })
       .select("id, order_code")
       .single();
     if (error || !order) throw new Error("Could not create order");
+    let userEmail: string | undefined;
+    try {
+      const { data: u } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+      userEmail = u?.user?.email;
+    } catch {
+      /* non-fatal */
+    }
+
     const pp = await paypal<{ id: string }>("/v2/checkout/orders", {
       method: "POST",
       headers: { "PayPal-Request-Id": order.id },
@@ -102,10 +110,17 @@ export const createPaypalOrder = createServerFn({ method: "POST" })
           {
             reference_id: order.order_code,
             custom_id: order.id,
-            description: `${pkg.entries} entries - RESPawn CLUB`,
+            description: `${pkg.entries} ${pkg.entries === 1 ? "entry" : "entries"} - Respawn Club`,
             amount: { currency_code: camp.currency, value: (pkg.price_cents / 100).toFixed(2) },
           },
         ],
+        application_context: {
+          brand_name: "Respawn Club",
+          shipping_preference: "NO_SHIPPING",
+          user_action: "PAY_NOW",
+          landing_page: "BILLING",
+        },
+        ...(userEmail ? { payer: { email_address: userEmail } } : {}),
       }),
     });
     await supabaseAdmin.from("orders").update({ paypal_order_id: pp.id }).eq("id", order.id);

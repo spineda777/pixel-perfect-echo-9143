@@ -33,7 +33,7 @@ function loadSdk(currency: string) {
 
   sdkPromise = new Promise((res, rej) => {
     const s = document.createElement("script");
-    s.src = `https://www.paypal.com/sdk/js?client-id=${id}&currency=${currency}&intent=capture`;
+    s.src = `https://www.paypal.com/sdk/js?client-id=${id}&currency=${currency}&intent=capture&disable-funding=paylater,venmo`;
     s.onload = () => res();
     s.onerror = () => rej(new Error("PayPal failed to load"));
     document.body.appendChild(s);
@@ -66,7 +66,7 @@ export function PayPalButton({
         if (!ref.current) return;
         ref.current.innerHTML = "";
         buttons = window.paypal.Buttons({
-          style: { layout: "vertical", shape: "rect", label: "pay" },
+          style: { layout: "vertical", shape: "rect", label: "pay", tagline: false },
           createOrder: async () => (await create({ data: { packageId } })).paypalOrderId,
           onApprove: async (d: { orderID: string }) => {
             const r = await capture({ data: { paypalOrderId: d.orderID } });
