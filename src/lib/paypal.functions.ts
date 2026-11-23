@@ -76,6 +76,97 @@ export const capturePaypalOrder = createServerFn({ method: "POST" })
       status: "completed", paypal_capture_id: capture.id, payer_email: cap.payer?.email_address ?? null,
       payer_name: payerName || null, first_entry_number: first, last_entry_number: last, completed_at: new Date().toISOString(),
     }).eq("id", order.id);
+
+    try {
+      const { data: u } = await supabaseAdmin.auth.admin.getUserById(order.user_id);
+      const recipientEmail = u?.user?.email || cap.payer?.email_address;
+      if (recipientEmail) {
+        const { sendOrderConfirmationEmail } = await import("./resend.server");
+        await sendOrderConfirmationEmail({
+          to: recipientEmail,
+          recipientName: payerName || u?.user?.user_metadata?.full_name || undefined,
+          orderCode: order.order_code,
+          campaignTitle: "GTA VI Legendary Drop",
+          entriesCount: order.entries_count,
+          firstEntry: first,
+          lastEntry: last,
+          amountFormatted: `$${(order.amount_cents / 100).toFixed(2)} ${order.currency}`,
+        });
+      }
+    } catch (emailErr) {
+      console.error("Order confirmation email failed to send:", emailErr);
+    }
+
+    return { orderCode: order.order_code, first, last };
+  });
+
+export const simulateDemoOrder = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d) => z.object({ packageId: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { allocateEntriesForUser } = await import("./entries.server");
+    const { data: pkg } = await supabaseAdmin
+      .from("campaign_packages")
+      .select("id, entries, price_cents, is_active, campaign_id, campaigns(mode, currency)")
+      .eq("id", data.packageId)
+      .single();
+    if (!pkg || !pkg.is_active) throw new Error("Package not available");
+    const camp = pkg.campaigns as unknown as { mode: string; currency: string };
+
+    const { data: allow } = await context.supabase.rpc("get_my_allowance", { _campaign_id: pkg.campaign_id });
+    const a = allow?.[0];
+    if (a && a.remaining < pkg.entries) throw new Error("Personal entry limit exceeded");
+
+    const { data: order, error } = await supabaseAdmin
+      .from("orders")
+      .insert({
+        campaign_id: pkg.campaign_id,
+        user_id: context.userId,
+        package_id: pkg.id,
+        entries_count: pkg.entries,
+        amount_cents: pkg.price_cents,
+        currency: camp.currency,
+        paypal_capture_id: "DEMO_SIMULATION",
+        payer_name: "Demo Tester",
+      })
+      .select("id, order_code")
+      .single();
+    if (error || !order) throw new Error("Could not create demo order");
+
+    const entries = await allocateEntriesForUser(pkg.campaign_id, context.userId, pkg.entries);
+    const ids = entries.map((e: { id: string }) => e.id);
+    const nums = entries.map((e: { entry_number: number }) => e.entry_number);
+    await supabaseAdmin.from("entries").update({ order_id: order.id }).in("id", ids);
+    const first = nums.length ? Math.min(...nums) : 1;
+    const last = nums.length ? Math.max(...nums) : pkg.entries;
+
+    await supabaseAdmin.from("orders").update({
+      status: "completed",
+      first_entry_number: first,
+      last_entry_number: last,
+      completed_at: new Date().toISOString(),
+    }).eq("id", order.id);
+
+    try {
+      const { data: u } = await supabaseAdmin.auth.admin.getUserById(context.userId);
+      if (u?.user?.email) {
+        const { sendOrderConfirmationEmail } = await import("./resend.server");
+        await sendOrderConfirmationEmail({
+          to: u.user.email,
+          recipientName: u?.user?.user_metadata?.full_name || "Gamer",
+          orderCode: order.order_code,
+          campaignTitle: "GTA VI Legendary Drop (Demo)",
+          entriesCount: pkg.entries,
+          firstEntry: first,
+          lastEntry: last,
+          amountFormatted: `$${(pkg.price_cents / 100).toFixed(2)} ${camp.currency}`,
+        });
+      }
+    } catch (emailErr) {
+      console.error("Demo confirmation email failed to send:", emailErr);
+    }
+
     return { orderCode: order.order_code, first, last };
   });
 

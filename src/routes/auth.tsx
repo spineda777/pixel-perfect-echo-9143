@@ -10,6 +10,10 @@ import { Label } from "@/components/ui/label";
 import { LangSwitch } from "@/components/site-chrome";
 
 export const Route = createFileRoute("/auth")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    packageId: typeof search.packageId === "string" ? search.packageId : undefined,
+    checkout: search.checkout === true || search.checkout === "true",
+  }),
   head: () => ({
     meta: [
       { title: "Sign in — Respawn Club" },
@@ -29,24 +33,42 @@ const GoogleLogo = () => (
 function AuthPage() {
   const { t } = useI18n();
   const navigate = useNavigate();
+  const search = Route.useSearch();
   const [mode, setMode] = useState<"in" | "up">("in");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
 
+  function getRedirectSearch() {
+    return search.packageId ? `?packageId=${encodeURIComponent(search.packageId)}&checkout=true` : "";
+  }
+
+  function handleSuccessfulAuth() {
+    if (search.packageId) {
+      navigate({ to: "/", search: { packageId: search.packageId, checkout: true } });
+    } else {
+      navigate({ to: "/" });
+    }
+  }
+
   async function submit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     try {
+      const returnUrl = `${window.location.origin}/${getRedirectSearch()}`;
       if (mode === "up") {
-        const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } });
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: returnUrl },
+        });
         if (error) throw error;
         setSent(true);
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate({ to: "/" });
+        handleSuccessfulAuth();
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t("error_generic"));
@@ -56,9 +78,10 @@ function AuthPage() {
   }
 
   async function oauth(provider: "google" | "lovable") {
-    const res = await lovable.auth.signInWithOAuth(provider, { redirect_uri: window.location.origin });
+    const returnUrl = `${window.location.origin}/${getRedirectSearch()}`;
+    const res = await lovable.auth.signInWithOAuth(provider, { redirect_uri: returnUrl });
     if (res.error) toast.error(t("error_generic"));
-    else if (!res.redirected) navigate({ to: "/" });
+    else if (!res.redirected) handleSuccessfulAuth();
   }
 
   return (

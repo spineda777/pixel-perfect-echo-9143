@@ -71,6 +71,10 @@ const en = {
   confirm_title_live: "Complete your participation",
   confirm_body_live:
     "Online payment is handled directly by the organizer for now. Send your account email and the package you chose, and your entries will be added once payment is confirmed.",
+  confirm_demo_cta: "Complete test purchase (Demo)",
+  confirm_demo_hint: "Assigns entry numbers and sends a confirmation email to your account.",
+  confirm_email_sent: "A confirmation email has been sent to your registered email address.",
+  confirm_demo_success: "Demo purchase completed successfully!",
   summary_live_note: "Entries are added to your account after the organizer confirms your payment.",
   winners_eyebrow: "The draw",
   winners_title: "Winners",
@@ -203,6 +207,10 @@ const es: Dict = {
   confirm_title_live: "Completa tu participación",
   confirm_body_live:
     "Por ahora el pago se gestiona directamente con el organizador. Envía el correo de tu cuenta y el paquete que elegiste, y tus participaciones se agregarán cuando se confirme el pago.",
+  confirm_demo_cta: "Completar compra de prueba (Demo)",
+  confirm_demo_hint: "Asigna tus números de entrada y envía el correo de confirmación a tu cuenta.",
+  confirm_email_sent: "Hemos enviado el correo de confirmación a tu dirección registrada.",
+  confirm_demo_success: "¡Compra de prueba completada con éxito!",
   summary_live_note: "Las participaciones se agregan a tu cuenta cuando el organizador confirma tu pago.",
   winners_eyebrow: "El sorteo",
   winners_title: "Ganadores",
@@ -333,6 +341,10 @@ const pt: Dict = {
   confirm_title_live: "Conclua sua participação",
   confirm_body_live:
     "Por enquanto, o pagamento é feito diretamente com o organizador. Envie o e-mail da sua conta e o pacote escolhido, e suas participações serão adicionadas após a confirmação do pagamento.",
+  confirm_demo_cta: "Concluir compra de teste (Demo)",
+  confirm_demo_hint: "Atribui seus números de participação e envia o e-mail de confirmação para sua conta.",
+  confirm_email_sent: "Um e-mail de confirmação foi enviado para o seu endereço registrado.",
+  confirm_demo_success: "Compra de teste concluída com sucesso!",
   summary_live_note: "As participações são adicionadas à sua conta depois que o organizador confirmar seu pagamento.",
   winners_eyebrow: "O sorteio",
   winners_title: "Vencedores",

@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
 import { Check, ChevronDown, Lock, Maximize2, ShieldCheck, Trophy, Users } from "lucide-react";
@@ -11,12 +12,17 @@ import { useMediaUrl } from "@/hooks/use-media-url";
 import { SiteFooter, SiteHeader } from "@/components/site-chrome";
 import { Button } from "@/components/ui/button";
 import { PayPalButton } from "@/components/paypal-button";
+import { simulateDemoOrder } from "@/lib/paypal.functions";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export const Route = createFileRoute("/")({
+  validateSearch: (search: Record<string, unknown>) => ({
+    packageId: typeof search.packageId === "string" ? search.packageId : undefined,
+    checkout: search.checkout === true || search.checkout === "true",
+  }),
   head: () => ({
     meta: [
       { title: "GTA VI Legendary Drop — Respawn Club" },
@@ -210,13 +216,31 @@ function CampaignPage() {
   }
 
   function PackagesSection() {
+    const search = Route.useSearch();
     const { locale } = useI18n();
     const { user } = useAuth();
     const stats = useQuery({ ...statsQuery(campaign.id), initialData: data!.stats }).data;
     const allowance = useQuery(allowanceQuery(campaign.id, user?.id ?? null)).data;
-    const [selected, setSelected] = useState<string | null>(packages.find((p) => p.is_recommended)?.id ?? null);
-    const [open, setOpen] = useState(false);
+    const [selected, setSelected] = useState<string | null>(
+      search.packageId || packages.find((p) => p.is_recommended)?.id ?? null
+    );
+    const [open, setOpen] = useState(Boolean(search.checkout && search.packageId));
+
+    useEffect(() => {
+      const storedPkg = sessionStorage.getItem("respawn_checkout_package");
+      const shouldOpen = sessionStorage.getItem("respawn_checkout_open") === "true";
+      if (storedPkg) {
+        setSelected(storedPkg);
+        sessionStorage.removeItem("respawn_checkout_package");
+      }
+      if (shouldOpen || (search.checkout && (search.packageId || storedPkg))) {
+        sessionStorage.removeItem("respawn_checkout_open");
+        setOpen(true);
+      }
+    }, [search]);
     const [done, setDone] = useState<{ orderCode: string; first: number | null; last: number | null } | null>(null);
+    const simulate = useServerFn(simulateDemoOrder);
+    const [isSimulating, setIsSimulating] = useState(false);
     const qc = useQueryClient();
     const campaignRemaining = stats?.remaining ?? campaign.max_inventory;
     const personalRemaining = allowance?.remaining ?? campaign.max_per_user;
@@ -283,16 +307,73 @@ function CampaignPage() {
               <li className="flex gap-2"><Check className="h-4 w-4 shrink-0 text-success" />{t("confirm_eligible")}</li>
               <li className="flex gap-2"><ShieldCheck className="h-4 w-4 shrink-0 text-primary" />{t("confirm_verify")}</li>
             </ul>
+            {isDemo && sel && !done && (user ? (
+              <div className="space-y-3 pt-2">
+                <Button
+                  className="w-full bg-signal shadow-glow"
+                  size="lg"
+                  disabled={isSimulating}
+                  onClick={async () => {
+                    try {
+                      setIsSimulating(true);
+                      const r = await simulate({ data: { packageId: sel.id } });
+                      setDone(r);
+                      qc.invalidateQueries({ queryKey: ["campaign", campaign.id] });
+                      toast.success(t("confirm_demo_success"));
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Error al procesar compra de prueba");
+                    } finally {
+                      setIsSimulating(false);
+                    }
+                  }}
+                >
+                  {isSimulating ? "Procesando..." : t("confirm_demo_cta")}
+                </Button>
+                <p className="text-center font-mono text-xs text-muted-foreground">
+                  {t("confirm_demo_hint")}
+                </p>
+              </div>
+            ) : !user ? (
+              <Button
+                asChild
+                className="w-full"
+                onClick={() => {
+                  if (sel) {
+                    sessionStorage.setItem("respawn_checkout_package", sel.id);
+                    sessionStorage.setItem("respawn_checkout_open", "true");
+                  }
+                }}
+              >
+                <Link to="/auth" search={{ packageId: sel?.id, checkout: true }}>
+                  {t("nav_signin")}
+                </Link>
+              </Button>
+            ) : null)}
+
             {!isDemo && sel && !done && (user
               ? <PayPalButton packageId={sel.id} currency={campaign.currency} onDone={(r) => {
                   if (r.ok) { setDone(r); qc.invalidateQueries({ queryKey: ["campaign", campaign.id] }); toast.success(r.orderCode); }
                   else toast.error(r.error);
                 }} />
-              : <Button asChild className="w-full"><Link to="/auth">Sign in</Link></Button>)}
+              : <Button
+                asChild
+                className="w-full"
+                onClick={() => {
+                  if (sel) {
+                    sessionStorage.setItem("respawn_checkout_package", sel.id);
+                    sessionStorage.setItem("respawn_checkout_open", "true");
+                  }
+                }}
+              >
+                <Link to="/auth" search={{ packageId: sel?.id, checkout: true }}>
+                  {t("nav_signin")}
+                </Link>
+              </Button>)}
             {done && (
               <div className="rounded-lg border border-primary bg-primary/10 p-4 font-mono text-sm">
-                <p className="font-semibold">✓ {done.orderCode}</p>
-                <p>#{String(done.first).padStart(5, "0")} – #{String(done.last).padStart(5, "0")}</p>
+                <p className="font-semibold text-primary">✓ {done.orderCode}</p>
+                <p className="mt-1">#{String(done.first).padStart(5, "0")} – #{String(done.last).padStart(5, "0")}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{t("confirm_email_sent")}</p>
               </div>
             )}
             <DialogFooter><Button variant="outline" onClick={() => { setOpen(false); setDone(null); }}>{t("confirm_close")}</Button></DialogFooter>
