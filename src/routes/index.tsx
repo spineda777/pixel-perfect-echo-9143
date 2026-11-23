@@ -238,7 +238,7 @@ function CampaignPage() {
         setOpen(true);
       }
     }, [search]);
-    const [done, setDone] = useState<{ orderCode: string; first: number | null; last: number | null } | null>(null);
+    const [done, setDone] = useState<{ orderCode: string; first: number | null; last: number | null; emailSent?: boolean; emailError?: string | undefined } | null>(null);
     const simulate = useServerFn(simulateDemoOrder);
     const [isSimulating, setIsSimulating] = useState(false);
     const qc = useQueryClient();
@@ -391,7 +391,8 @@ function CampaignPage() {
               <div className="rounded-lg border border-primary bg-primary/10 p-4 font-mono text-sm">
                 <p className="font-semibold text-primary">✓ {done.orderCode}</p>
                 <p className="mt-1">#{String(done.first).padStart(5, "0")} – #{String(done.last).padStart(5, "0")}</p>
-                <p className="mt-2 text-xs text-muted-foreground">{t("confirm_email_sent")}</p>
+                <p className="mt-2 text-xs text-muted-foreground">{done.emailSent === false ? t("confirm_email_failed") : t("confirm_email_sent")}</p>
+                {done.emailSent === false && isAdmin && done.emailError && <p className="mt-1 break-words text-[10px] text-destructive">{done.emailError}</p>}
               </div>
             )}
             <DialogFooter><Button variant="outline" onClick={() => { setOpen(false); setDone(null); }}>{t("confirm_close")}</Button></DialogFooter>

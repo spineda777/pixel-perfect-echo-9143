@@ -50,7 +50,7 @@ export function PayPalButton({
   currency: string;
   onDone: (
     r:
-      | { ok: true; orderCode: string; first: number | null; last: number | null }
+      | { ok: true; orderCode: string; first: number | null; last: number | null; emailSent?: boolean; emailError?: string | undefined }
       | { ok: false; error: string },
   ) => void;
 }) {
