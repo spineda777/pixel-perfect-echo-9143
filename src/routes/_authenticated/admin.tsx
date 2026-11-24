@@ -24,6 +24,8 @@ export const Route = createFileRoute("/_authenticated/admin")({
       { property: "og:title", content: "Admin — Respawn Club" },
       { property: "og:description", content: "Respawn Club campaign administration." },
       { name: "robots", content: "noindex" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AdminPage,

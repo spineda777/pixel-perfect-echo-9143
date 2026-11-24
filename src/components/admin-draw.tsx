@@ -2,6 +2,8 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import type { Tables } from "@/integrations/supabase/types";
+import { statsQuery } from "@/lib/campaign-queries";
+import { canDrawFromSales } from "@/lib/campaign-rules";
 import { drawWinners, getAdminDraw, grantEntries } from "@/lib/entries.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +32,8 @@ function Box({ title, children }: { title: string; children: React.ReactNode }) 
 export function DrawPanel({ c }: { c: Tables<"campaigns"> }) {
   const qc = useQueryClient();
   const live = c.mode === "production";
+  const sales = useQuery(statsQuery(c.id)).data;
+  const meetsMinimum = canDrawFromSales(sales?.entries_sold ?? 0, c.max_inventory);
   const ended = !!c.ends_at && Date.now() > new Date(c.ends_at).getTime();
 
   // Grant entries
@@ -166,6 +170,7 @@ export function DrawPanel({ c }: { c: Tables<"campaigns"> }) {
               one prize. The result is stored in the audit log and shown publicly with privacy-safe
               identifiers.
             </p>
+            <p className="text-sm font-semibold text-warning">Draw requires 60% sold ({Math.ceil(c.max_inventory * 0.6).toLocaleString()} paid entries). Test purchases do not count.</p>
             {live && !ended && (
               <label className="flex items-center gap-3 text-sm">
                 <Switch checked={early} onCheckedChange={setEarly} />
@@ -174,7 +179,7 @@ export function DrawPanel({ c }: { c: Tables<"campaigns"> }) {
             )}
             <Button
               className="w-fit"
-              disabled={!live || busy || stored.isLoading || (!ended && !early)}
+              disabled={!live || !meetsMinimum || busy || stored.isLoading || (!ended && !early)}
               onClick={() => setConfirmOpen(true)}
             >
               Draw winners

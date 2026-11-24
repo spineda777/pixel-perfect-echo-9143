@@ -28,3 +28,7 @@ use the editor.
   own key and store it in Secrets.
 - **Secrets.** Lovable manages them. Do not put secret values in the repo.
 <!-- LOVABLE:END -->
+
+- Keep draw eligibility in the shared campaign-rules helper and enforce it inside the authenticated draw handler, so early draws cannot bypass sales requirements.
+- Sales statistics count only completed non-test paid entries; inventory availability still counts all valid entries to preserve allocation limits.
+- Use Organization/WebPage structured data while dates and legal terms are unconfirmed; do not invent Event dates or unsupported schema types.

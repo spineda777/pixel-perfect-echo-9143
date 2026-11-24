@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { LANGS, useI18n } from "@/lib/i18n";
+import { Instagram, Music2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function DemoBanner() {
@@ -19,18 +20,26 @@ export function LangSwitch() {
   return (
     <div className="flex rounded-md border border-border p-0.5" role="group" aria-label="Language">
       {LANGS.map((l) => (
-        <button
+        <Button
+            variant="ghost"
           key={l.code}
           type="button"
           onClick={() => setLang(l.code)}
           aria-pressed={lang === l.code}
-          className={`rounded px-2 py-1 font-mono text-xs ${lang === l.code ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
+          className={`h-auto rounded px-2 py-1 font-mono text-xs ${lang === l.code ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"}`}
         >
           {l.label}
-        </button>
+        </Button>
       ))}
     </div>
   );
+}
+
+function SocialLinks() {
+  return <div className="flex items-center gap-1">
+    <Button asChild variant="glass" size="icon"><a href="https://www.instagram.com/rickyrespawn06/" target="_blank" rel="noopener noreferrer" aria-label="Instagram @rickyrespawn06" title="Instagram @rickyrespawn06"><Instagram /></a></Button>
+    <Button asChild variant="glass" size="icon"><a href="https://www.tiktok.com/@rickyrespawn06" target="_blank" rel="noopener noreferrer" aria-label="TikTok @rickyrespawn06" title="TikTok @rickyrespawn06"><Music2 /></a></Button>
+  </div>;
 }
 
 export function SiteHeader() {
@@ -60,6 +69,7 @@ export function SiteHeader() {
           <Link to="/rules" className="hover:text-foreground">{t("nav_rules")}</Link>
         </nav>
         <div className="ml-auto flex items-center gap-2">
+          <div className="hidden xl:block"><SocialLinks /></div>
           <LangSwitch />
           {isAdmin && (
             <Button asChild variant="ghost" size="sm">

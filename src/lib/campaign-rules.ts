@@ -5,8 +5,8 @@ export const HARD_MAX_PER_USER = 100;
 
 export function percentSold(sold: number, total: number): number {
   if (!Number.isFinite(sold) || !Number.isFinite(total) || total <= 0) return 0;
-  // Floor so the bar never overstates sales.
-  return Math.min(100, Math.max(0, Math.floor((sold / total) * 100)));
+  // Floor to thousandths so progress remains precise without overstating sales.
+  return Math.min(100, Math.max(0, Math.floor((sold / total) * 100_000) / 1000));
 }
 
 export type PackageBlockReason = "campaign_inventory" | "personal_limit" | null;
@@ -96,4 +96,10 @@ export function getCountdown(endsAt: string | null, now: number): Countdown {
     minutes: Math.floor((s % 3600) / 60),
     seconds: s % 60,
   };
+}
+
+export const DRAW_MIN_SALES_PERCENT = 60;
+
+export function canDrawFromSales(sold: number, inventory: number): boolean {
+  return Number.isFinite(sold) && Number.isFinite(inventory) && inventory > 0 && sold >= Math.ceil(inventory * DRAW_MIN_SALES_PERCENT / 100);
 }

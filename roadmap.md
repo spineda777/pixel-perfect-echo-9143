@@ -7,3 +7,9 @@
 - [x] Admin dashboard: settings, packages, prizes/images, FAQ, rules, analytics, audit log
 - [x] English / Spanish / Brazilian Portuguese
 - [x] Tests for limits + countdown time zone
+- [ ] Assign requested admin and verify test access
+- [ ] Animate LIVE, refine glass buttons and show precise sales progress
+- [ ] Add social links and spam reminder
+- [ ] Refresh multilingual rules/FAQ and enforce 60% draw minimum
+- [ ] Include the confirmed operator name RespawnClub Co in the rules
+- [ ] Improve search metadata and verify desktop/mobile experience

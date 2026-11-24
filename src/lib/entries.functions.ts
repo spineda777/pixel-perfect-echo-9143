@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import type { DrawWinner } from "./draw";
+import { canDrawFromSales } from "./campaign-rules";
 
 // Server functions return { ok: false, error } instead of throwing, so the UI can show a clean message.
 type Fail = { ok: false; error: string };
@@ -79,11 +80,22 @@ export const drawWinners = createServerFn({ method: "POST" })
 
       const { data: c, error } = await supabaseAdmin
         .from("campaigns")
-        .select("id, mode, ends_at")
+        .select("id, mode, ends_at, max_inventory")
         .eq("id", data.campaignId)
         .maybeSingle();
       if (error || !c) return fail(new Error("Campaign not found"));
       if (c.mode !== "production") return fail(new Error("The draw only runs in production mode"));
+      const { count: paidEntries, error: paidError } = await supabaseAdmin
+        .from("entries")
+        .select("id, orders!inner(status, paypal_capture_id)", { count: "exact", head: true })
+        .eq("campaign_id", data.campaignId)
+        .eq("status", "valid")
+        .eq("orders.status", "completed")
+        .neq("orders.paypal_capture_id", "DEMO_SIMULATION");
+      if (paidError) return fail(paidError);
+      if (!canDrawFromSales(paidEntries ?? 0, c.max_inventory)) {
+        return fail(new Error("At least 60% of inventory must be sold before the draw. Test entries do not count."));
+      }
       const ended = !!c.ends_at && Date.now() > new Date(c.ends_at).getTime();
       if (!ended && !data.allowEarly) {
         return fail(

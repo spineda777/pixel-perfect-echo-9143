@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canDrawFromSales,
   getCountdown,
   packageAvailability,
   percentSold,
@@ -8,12 +9,22 @@ import {
 } from "./campaign-rules";
 
 describe("campaign rules", () => {
+  it("shows thousandths for 16 of 15,000 entries", () => {
+    expect(percentSold(16, 15000)).toBe(0.106);
+    expect(percentSold(1, 15000)).toBe(0.006);
+  });
+
+  it("requires 60% of inventory sold before drawing", () => {
+    expect(canDrawFromSales(8999, 15000)).toBe(false);
+    expect(canDrawFromSales(9000, 15000)).toBe(true);
+    expect(canDrawFromSales(0, 0)).toBe(false);
+  });
   it("shows 71% when 10,650 of 15,000 entries are sold", () => {
     expect(percentSold(10650, 15000)).toBe(71);
   });
 
   it("never rounds progress up to 100% before the last entry is gone", () => {
-    expect(percentSold(14999, 15000)).toBe(99);
+    expect(percentSold(14999, 15000)).toBe(99.993);
   });
 
   it("blocks a package larger than the remaining campaign inventory", () => {

@@ -21,6 +21,8 @@ export const Route = createFileRoute("/auth")({
       { property: "og:title", content: "Sign in — Respawn Club" },
       { property: "og:description", content: "Sign in or create your verified Respawn Club account." },
       { name: "robots", content: "noindex" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
     ],
   }),
   component: AuthPage,

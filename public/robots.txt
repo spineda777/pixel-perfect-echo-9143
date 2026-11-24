@@ -12,3 +12,5 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+Sitemap: https://legendary-drop-respawnclub.lovable.app/sitemap.xml

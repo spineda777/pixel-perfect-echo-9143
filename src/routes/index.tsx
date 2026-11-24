@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Check, ChevronDown, Lock, Maximize2, ShieldCheck, Trophy, Users } from "lucide-react";
 import heroAsset from "@/assets/hero-drop.jpg.asset.json";
 import { allowanceQuery, drawResultQuery, featuredCampaignQuery, publicEntriesQuery, statsQuery } from "@/lib/campaign-queries";
+import type { getFeaturedCampaign } from "@/lib/campaign.functions";
 import { formatMoney, formatNumber, getCountdown, packageAvailability, percentSold } from "@/lib/campaign-rules";
 import { tr, useI18n, type TKey } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
@@ -23,15 +24,28 @@ export const Route = createFileRoute("/")({
     packageId: typeof search["packageId"] === "string" ? (search["packageId"] as string) : undefined,
     checkout: search["checkout"] === true || search["checkout"] === "true" ? true : undefined,
   }),
-  head: () => ({
+  head: ({ loaderData }: { loaderData?: Awaited<ReturnType<typeof getFeaturedCampaign>> }) => ({
     meta: [
       { title: "GTA VI Legendary Drop — Respawn Club" },
-      { name: "description", content: "Three prizes, three winners: PS5 Pro, GTA VI and a $50 gift card. Max 15,000 entries, 100 per account." },
+      { name: "description", content: "Respawn Club GTA VI giveaway: PS5 Pro + GTA VI, a GTA VI copy and a $50 gift card. Explore packages, verified entry numbers and the 60% sales draw minimum." },
       { property: "og:title", content: "GTA VI Legendary Drop — Respawn Club" },
-      { property: "og:description", content: "Three prizes, three winners. Max 15,000 entries, 100 per account." },
+      { property: "og:description", content: "PS5 Pro + GTA VI, a GTA VI copy and a $50 gift card. Track entries and read the draw conditions." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:url", content: "https://legendary-drop-respawnclub.lovable.app/" },
+      ...(loaderData?.campaign.hero_image_url?.startsWith("https://") ? [
+        { property: "og:image", content: loaderData.campaign.hero_image_url },
+        { name: "twitter:image", content: loaderData.campaign.hero_image_url },
+      ] : []),
     ],
+    links: [{ rel: "canonical", href: "https://legendary-drop-respawnclub.lovable.app/" }],
+    scripts: [{ type: "application/ld+json", children: JSON.stringify({
+      "@context": "https://schema.org",
+      "@graph": [
+        { "@type": "Organization", "@id": "https://legendary-drop-respawnclub.lovable.app/#organization", name: "Respawn Club", url: "https://legendary-drop-respawnclub.lovable.app/", sameAs: ["https://www.instagram.com/rickyrespawn06/", "https://www.tiktok.com/@rickyrespawn06"] },
+        { "@type": "WebPage", name: "GTA VI Legendary Drop — Respawn Club", url: "https://legendary-drop-respawnclub.lovable.app/", description: "Gaming prize campaign with a PS5 Pro + GTA VI, a GTA VI copy and a $50 gift card. Draw requires 60% of inventory sold; closing date is unconfirmed.", about: { "@id": "https://legendary-drop-respawnclub.lovable.app/#organization" } }
+      ]
+    }) }],
   }),
   loader: ({ context }) => context.queryClient.ensureQueryData(featuredCampaignQuery),
   component: CampaignPage,
@@ -55,6 +69,7 @@ function CampaignPage() {
   }
   const { campaign, prizes, packages, faqs } = data;
   const isDemo = campaign.mode === "demo";
+  const statsInitial = data.stats;
 
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -93,7 +108,7 @@ function CampaignPage() {
     const grandImg = useMediaUrl(grand?.image_url ?? null, PRIZE_FALLBACK[0] ?? heroAsset.url);
     const { locale } = useI18n();
     return (
-      <section className="relative overflow-hidden border-b border-border">
+      <section className="campaign-hero relative overflow-hidden border-b border-border">
         <img src={heroUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />
         <div className="absolute inset-0 bg-fade-left" />
         <div className="absolute inset-0 bg-fade-bottom" />
@@ -103,10 +118,10 @@ function CampaignPage() {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="eyebrow">{t("hero_eyebrow")}</span>
                 {!isDemo && (
-                  <span className="rounded bg-success px-2 py-0.5 font-mono text-[10px] font-semibold text-background">{t("status_live")}</span>
+                  <span className="live-badge inline-flex items-center gap-2 rounded border border-success/40 bg-success/10 px-3 py-1 font-mono text-xs font-bold uppercase text-success"><span className="live-dot h-2 w-2 rounded-full bg-success" />{t("status_live")}</span>
                 )}
               </div>
-              <h1 className="mt-4 font-display text-4xl font-extrabold leading-[1.05] tracking-tight md:text-6xl">{tr(campaign.title, lang)}</h1>
+              <h1 className="mt-4 font-display text-4xl font-extrabold leading-[1.12] md:text-6xl">{tr(campaign.title, lang)}</h1>
               <p className="mt-4 max-w-xl text-lg text-muted-foreground">{tr(campaign.tagline, lang)}</p>
               {grand && (
                 <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold/10 px-4 py-1.5 font-mono text-xs font-semibold uppercase text-gold">
@@ -121,12 +136,12 @@ function CampaignPage() {
               </div>
               <div className="mt-8 flex flex-wrap gap-3">
                 <Button asChild size="lg" className="bg-signal shadow-glow"><a href="#packages">{t("hero_cta_packages")}</a></Button>
-                <Button asChild size="lg" variant="outline"><a href="#prizes">{t("hero_cta_prizes")}</a></Button>
+                <Button asChild size="lg" variant="glass"><a href="#prizes">{t("hero_cta_prizes")}</a></Button>
               </div>
             </div>
             {grand && (
               <div className="relative">
-                <div className="absolute -inset-4 rounded-3xl bg-primary/30 blur-3xl" aria-hidden />
+                <div className="hidden" aria-hidden />
                 <article role="button" tabIndex={0} onClick={() => setOpenPrizeId(grand.id)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenPrizeId(grand.id); } }} className="relative cursor-pointer overflow-hidden rounded-2xl border border-primary/50 bg-card-gradient shadow-glow transition hover:border-primary">
                   <span className="absolute left-4 top-4 z-10 rounded bg-signal px-3 py-1 font-mono text-xs font-bold uppercase text-primary-foreground">{t("hero_grand_prize")}</span>
                   <img src={grandImg} alt={tr(grand.title, lang)} className="aspect-[3/2] w-full object-cover" />
@@ -177,7 +192,7 @@ function CampaignPage() {
               ))}
             </div>
             <p className="mt-3 font-mono text-xs text-muted-foreground">
-              {t("countdown_tz")}: {new Date(campaign.ends_at!).toLocaleString(undefined, { timeZone: campaign.timezone, dateStyle: "medium", timeStyle: "short", timeZoneName: "short" })}
+              {t("countdown_tz")}: {new Date(campaign.ends_at ?? "").toLocaleString(undefined, { timeZone: campaign.timezone, dateStyle: "medium", timeStyle: "short" })}
             </p>
           </>
         ) : cd.state === "ended" ? (
@@ -193,7 +208,7 @@ function CampaignPage() {
   }
 
   function ProgressCard() {
-    const stats = useQuery({ ...statsQuery(campaign.id), initialData: data!.stats }).data;
+    const stats = useQuery({ ...statsQuery(campaign.id), initialData: statsInitial }).data;
     const sold = stats?.entries_sold ?? 0;
     const total = stats?.max_inventory ?? campaign.max_inventory;
     const pct = percentSold(sold, total);
@@ -201,11 +216,12 @@ function CampaignPage() {
       <div className="rounded-xl border border-border bg-card-gradient p-5 shadow-card">
         <div className="flex items-end justify-between">
           <p className="eyebrow">{t("progress_sold")}</p>
-          <p className="font-display text-2xl font-bold">{pct}% <span className="text-sm font-normal text-muted-foreground">{t("progress_sold_pct")}</span></p>
+          <p className="font-display text-2xl font-bold">{new Intl.NumberFormat(lang === "es" ? "es-ES" : lang === "pt" ? "pt-BR" : "en-US", { minimumFractionDigits: 3, maximumFractionDigits: 3 }).format(pct)}% <span className="text-sm font-normal text-muted-foreground">{t("progress_sold_pct")}</span></p>
         </div>
         <div className="mt-3 h-3 overflow-hidden rounded-full bg-surface-raised" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-          <div className="h-full rounded-full bg-signal" style={{ width: `${pct}%` }} />
+          <div className="sales-fill h-full rounded-full bg-signal" style={{ width: `${pct}%`, minWidth: sold > 0 ? "4px" : "0" }} />
         </div>
+        <p className="mt-3 text-xs font-semibold text-success">{t("draw_threshold")}</p>
         <div className="mt-3 grid grid-cols-3 gap-2 font-mono text-xs">
           <div><p className="text-muted-foreground">{t("progress_sold")}</p><p className="text-sm font-semibold">{formatNumber(sold, "en-US")}</p></div>
           <div><p className="text-muted-foreground">{t("progress_total")}</p><p className="text-sm font-semibold">{formatNumber(total, "en-US")}</p></div>
@@ -219,7 +235,7 @@ function CampaignPage() {
     const search = Route.useSearch();
     const { locale } = useI18n();
     const { user, isAdmin } = useAuth();
-    const stats = useQuery({ ...statsQuery(campaign.id), initialData: data!.stats }).data;
+    const stats = useQuery({ ...statsQuery(campaign.id), initialData: statsInitial }).data;
     const allowance = useQuery(allowanceQuery(campaign.id, user?.id ?? null)).data;
     const [selected, setSelected] = useState<string | null>(
       search.packageId ?? packages.find((p) => p.is_recommended)?.id ?? null
@@ -251,7 +267,7 @@ function CampaignPage() {
       <section id="packages" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-20">
         <p className="eyebrow">{t("packages_eyebrow")}</p>
         <h2 className="mt-2 font-display text-3xl font-bold">{t("packages_title")}</h2>
-        <p className="mt-2 text-muted-foreground">{t("packages_sub")}</p>
+        <p className="mt-2 text-muted-foreground">{t(isDemo ? "summary_demo_note" : "packages_sub")}</p>
         <div className="mt-4 flex flex-wrap gap-4 font-mono text-xs text-muted-foreground">
           <span>{t("packages_max_account")}: {campaign.max_per_user}</span>
           <span>{user && allowance ? `${t("packages_your_allowance")}: ${allowance.remaining}` : !user ? t("packages_signin_allowance") : ""}</span>
@@ -262,13 +278,14 @@ function CampaignPage() {
               const av = packageAvailability(p.entries, { campaignRemaining, personalRemaining });
               const active = selected === p.id;
               return (
-                <button
+                <Button
+                  variant="glass"
                   key={p.id}
                   type="button"
                   disabled={!av.available}
                   onClick={() => setSelected(p.id)}
                   aria-pressed={active}
-                  className={`relative rounded-xl border p-5 text-left transition ${active ? "border-primary bg-primary/10 shadow-glow" : "border-border bg-card-gradient hover:border-primary/60"} disabled:cursor-not-allowed disabled:opacity-40`}
+                  className={`relative h-auto min-h-40 flex-col items-start gap-0 whitespace-normal rounded-lg border p-5 text-left transition ${active ? "border-primary bg-primary/10 shadow-glow" : "border-border bg-card-gradient hover:border-primary/60"} disabled:cursor-not-allowed disabled:opacity-40`}
                 >
                   {p.is_recommended && <span className="absolute -top-2.5 left-4 rounded bg-signal px-2 py-0.5 font-mono text-[10px] font-semibold text-primary-foreground">{t("packages_recommended")}</span>}
                   <p className="font-display text-3xl font-bold">{p.entries}</p>
@@ -278,7 +295,7 @@ function CampaignPage() {
                     <p className="mt-2 flex items-center gap-1 text-xs text-destructive"><Lock className="h-3 w-3" />{av.reason === "campaign_inventory" ? t("packages_blocked_inventory") : t("packages_blocked_personal")}</p>
                   )}
                   {active && <Check className="absolute right-3 top-3 h-5 w-5 text-primary" />}
-                </button>
+                </Button>
               );
             })}
           </div>
@@ -325,13 +342,13 @@ function CampaignPage() {
             )}
 
             {user && sel && !done && (() => {
-              const canSimulate = isDemo || isAdmin || user.email === "spineda2014.123@gmail.com";
+              const canSimulate = isAdmin;
               return (
                 <div className="space-y-4 pt-2">
                   {canSimulate && (
                     <div className="rounded-lg border border-signal/40 bg-signal/10 p-3 space-y-2">
                       <div className="flex items-center justify-between text-xs font-mono text-signal">
-                        <span>{isAdmin || user.email === "spineda2014.123@gmail.com" ? "MODO TEST ADMIN" : "MODO DEMO"}</span>
+                        <span>{isAdmin ? "MODO TEST ADMIN" : "MODO DEMO"}</span>
                         <span>$0.00</span>
                       </div>
                       <Button
@@ -392,6 +409,7 @@ function CampaignPage() {
                 <p className="font-semibold text-primary">✓ {done.orderCode}</p>
                 <p className="mt-1">#{String(done.first).padStart(5, "0")} – #{String(done.last).padStart(5, "0")}</p>
                 <p className="mt-2 text-xs text-muted-foreground">{done.emailSent === false ? t("confirm_email_failed") : t("confirm_email_sent")}</p>
+                {done.emailSent !== false && <p className="mt-2 text-xs text-muted-foreground">{t("confirm_spam")}</p>}
                 {done.emailSent === false && isAdmin && done.emailError && <p className="mt-1 break-words text-[10px] text-destructive">{done.emailError}</p>}
               </div>
             )}
@@ -454,7 +472,7 @@ function CampaignPage() {
     const tone = prize.rank === 1 ? "text-gold" : prize.rank === 2 ? "text-silver" : "text-bronze";
     return (
       <DialogContent className="max-h-[92vh] w-[calc(100%-1.5rem)] max-w-3xl gap-0 overflow-y-auto p-0">
-        <div className="bg-black">
+        <div className="bg-background">
           <img src={img} alt={tr(prize.title, lang)} className="mx-auto max-h-[55vh] w-full object-contain" />
         </div>
         <div className="p-6">
@@ -522,7 +540,7 @@ function CampaignPage() {
           {rows.length === 0 ? (
             <p className="mt-8 rounded-lg border border-dashed border-border p-8 text-center text-sm text-muted-foreground">{t("entries_empty")}</p>
           ) : (
-            <div className="mt-6 overflow-hidden rounded-xl border border-border">
+            <div className="mt-6 overflow-x-auto rounded-lg border border-border">
               <table className="w-full text-sm">
                 <thead className="bg-surface-raised font-mono text-xs text-muted-foreground">
                   <tr><th className="p-3 text-left">{t("entries_col_number")}</th><th className="p-3 text-left">ID</th><th className="p-3 text-left">{t("entries_col_player")}</th><th className="p-3 text-right">{t("entries_col_status")}</th></tr>
