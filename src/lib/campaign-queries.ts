@@ -23,7 +23,8 @@ export function statsQuery(campaignId: string) {
       if (error) throw error;
       return data?.[0] ?? null;
     },
-    refetchInterval: 20_000,
+    refetchInterval: 4_000,
+    refetchOnWindowFocus: true,
   });
 }
 

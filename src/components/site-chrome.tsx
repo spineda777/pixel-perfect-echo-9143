@@ -35,7 +35,7 @@ export function LangSwitch() {
   );
 }
 
-function SocialLinks() {
+export function SocialLinks() {
   return <div className="flex items-center gap-1">
     <Button asChild variant="glass" size="icon"><a href="https://www.instagram.com/rickyrespawn06/" target="_blank" rel="noopener noreferrer" aria-label="Instagram @rickyrespawn06" title="Instagram @rickyrespawn06"><Instagram /></a></Button>
     <Button asChild variant="glass" size="icon"><a href="https://www.tiktok.com/@rickyrespawn06" target="_blank" rel="noopener noreferrer" aria-label="TikTok @rickyrespawn06" title="TikTok @rickyrespawn06"><Music2 /></a></Button>
@@ -97,6 +97,7 @@ export function SiteFooter() {
         <div>
           <p className="font-display text-base font-bold">RESPAWN<span className="text-signal">CLUB</span></p>
           <p className="mt-1 text-sm text-muted-foreground">{t("footer_tagline")}</p>
+          <div className="mt-4"><SocialLinks /></div>
           <p className="mt-4 max-w-2xl text-xs text-muted-foreground">{t("footer_disclaimer")}</p>
         </div>
         <div className="flex flex-col gap-2 text-sm md:items-end">

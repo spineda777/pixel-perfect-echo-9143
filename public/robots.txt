@@ -1,16 +1,30 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /auth
+
+# Search engines and AI assistants are welcome to read and cite this site.
 User-agent: Googlebot
 Allow: /
-
 User-agent: Bingbot
 Allow: /
-
-User-agent: Twitterbot
+User-agent: GPTBot
 Allow: /
-
-User-agent: facebookexternalhit
+User-agent: OAI-SearchBot
 Allow: /
-
-User-agent: *
+User-agent: ChatGPT-User
+Allow: /
+User-agent: ClaudeBot
+Allow: /
+User-agent: Claude-SearchBot
+Allow: /
+User-agent: Claude-User
+Allow: /
+User-agent: PerplexityBot
+Allow: /
+User-agent: Google-Extended
+Allow: /
+User-agent: Applebot-Extended
 Allow: /
 
 Sitemap: https://legendary-drop-respawnclub.lovable.app/sitemap.xml

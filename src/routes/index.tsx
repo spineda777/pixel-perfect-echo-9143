@@ -5,12 +5,15 @@ import { useEffect, useState } from "react";
 import { Check, ChevronDown, Lock, Maximize2, ShieldCheck, Trophy, Users } from "lucide-react";
 import heroAsset from "@/assets/hero-drop.jpg.asset.json";
 import { allowanceQuery, drawResultQuery, featuredCampaignQuery, publicEntriesQuery, statsQuery } from "@/lib/campaign-queries";
-import type { getFeaturedCampaign } from "@/lib/campaign.functions";
 import { formatMoney, formatNumber, getCountdown, packageAvailability, percentSold } from "@/lib/campaign-rules";
 import { tr, useI18n, type TKey } from "@/lib/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { useMediaUrl } from "@/hooks/use-media-url";
-import { SiteFooter, SiteHeader } from "@/components/site-chrome";
+import { SiteFooter, SiteHeader, SocialLinks } from "@/components/site-chrome";
+import { SITE_NAME, SITE_URL, OG_FALLBACK_IMAGE } from "@/lib/seo";
+import type { Json } from "@/integrations/supabase/types";
+import { AmbientBackground } from "@/components/ambient-background";
+import { Reveal } from "@/components/reveal";
 import { Button } from "@/components/ui/button";
 import { PayPalButton } from "@/components/paypal-button";
 import { simulateDemoOrder } from "@/lib/paypal.functions";
@@ -19,34 +22,68 @@ import { toast } from "sonner";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
+const SOCIAL_INSTAGRAM = "https://www.instagram.com/rickyrespawn06/";
+const SOCIAL_TIKTOK = "https://www.tiktok.com/@rickyrespawn06";
+
 export const Route = createFileRoute("/")({
   validateSearch: (search: Record<string, unknown>): { packageId?: string | undefined; checkout?: boolean | undefined } => ({
     packageId: typeof search["packageId"] === "string" ? (search["packageId"] as string) : undefined,
     checkout: search["checkout"] === true || search["checkout"] === "true" ? true : undefined,
   }),
-  head: ({ loaderData }: { loaderData?: Awaited<ReturnType<typeof getFeaturedCampaign>> }) => ({
-    meta: [
-      { title: "GTA VI Legendary Drop — Respawn Club" },
-      { name: "description", content: "Respawn Club GTA VI giveaway: PS5 Pro + GTA VI, a GTA VI copy and a $50 gift card. Explore packages, verified entry numbers and the 60% sales draw minimum." },
-      { property: "og:title", content: "GTA VI Legendary Drop — Respawn Club" },
-      { property: "og:description", content: "PS5 Pro + GTA VI, a GTA VI copy and a $50 gift card. Track entries and read the draw conditions." },
-      { property: "og:type", content: "website" },
-      { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:url", content: "https://legendary-drop-respawnclub.lovable.app/" },
-      ...(loaderData?.campaign.hero_image_url?.startsWith("https://") ? [
-        { property: "og:image", content: loaderData.campaign.hero_image_url },
-        { name: "twitter:image", content: loaderData.campaign.hero_image_url },
-      ] : []),
-    ],
-    links: [{ rel: "canonical", href: "https://legendary-drop-respawnclub.lovable.app/" }],
-    scripts: [{ type: "application/ld+json", children: JSON.stringify({
+  head: ({ loaderData }) => {
+    const loaded = loaderData as unknown as
+      | { campaign?: { hero_image_url?: string | null }; faqs?: { question: Json; answer: Json }[] }
+      | null
+      | undefined;
+    const title = "GTA VI Giveaway: Win a PS5 Pro + GTA VI | Respawn Club";
+    const description =
+      "Respawn Club GTA VI Legendary Drop: win a PlayStation 5 Pro + GTA VI, a GTA VI copy or a $50 gift card. 15,000 entries, max 100 per person, PayPal checkout, public official rules and live progress. Draw requires 60% of entries sold.";
+    const heroImage = loaded?.campaign?.hero_image_url?.startsWith("https://") ? loaded.campaign.hero_image_url : OG_FALLBACK_IMAGE;
+    const faqs = (loaded?.faqs ?? []).map((f) => ({
+      "@type": "Question",
+      name: tr(f.question, "en"),
+      acceptedAnswer: { "@type": "Answer", text: tr(f.answer, "en") },
+    }));
+    // Organization / WebSite / WebPage / FAQPage only: no Event dates while the closing date is unconfirmed.
+    const jsonLd = {
       "@context": "https://schema.org",
       "@graph": [
-        { "@type": "Organization", "@id": "https://legendary-drop-respawnclub.lovable.app/#organization", name: "Respawn Club", url: "https://legendary-drop-respawnclub.lovable.app/", sameAs: ["https://www.instagram.com/rickyrespawn06/", "https://www.tiktok.com/@rickyrespawn06"] },
-        { "@type": "WebPage", name: "GTA VI Legendary Drop — Respawn Club", url: "https://legendary-drop-respawnclub.lovable.app/", description: "Gaming prize campaign with a PS5 Pro + GTA VI, a GTA VI copy and a $50 gift card. Draw requires 60% of inventory sold; closing date is unconfirmed.", about: { "@id": "https://legendary-drop-respawnclub.lovable.app/#organization" } }
-      ]
-    }) }],
-  }),
+        { "@type": "Organization", "@id": `${SITE_URL}/#organization`, name: SITE_NAME, url: `${SITE_URL}/`, logo: OG_FALLBACK_IMAGE, sameAs: [SOCIAL_INSTAGRAM, SOCIAL_TIKTOK] },
+        { "@type": "WebSite", "@id": `${SITE_URL}/#website`, url: `${SITE_URL}/`, name: SITE_NAME, inLanguage: ["en", "es", "pt"], publisher: { "@id": `${SITE_URL}/#organization` } },
+        {
+          "@type": "WebPage",
+          "@id": `${SITE_URL}/#webpage`,
+          name: title,
+          url: `${SITE_URL}/`,
+          description,
+          isPartOf: { "@id": `${SITE_URL}/#website` },
+          primaryImageOfPage: heroImage,
+          about: { "@id": `${SITE_URL}/#organization` },
+        },
+        ...(faqs.length ? [{ "@type": "FAQPage", "@id": `${SITE_URL}/#faq`, mainEntity: faqs }] : []),
+      ],
+    };
+    return {
+      meta: [
+        { title },
+        { name: "description", content: description },
+        { name: "keywords", content: "GTA VI giveaway, win PS5 Pro, sorteo GTA VI, sorteo PlayStation 5 Pro, sorteio GTA VI, Respawn Club, gaming giveaway" },
+        { name: "robots", content: "index, follow, max-image-preview:large, max-snippet:-1" },
+        { property: "og:title", content: title },
+        { property: "og:description", content: description },
+        { property: "og:type", content: "website" },
+        { property: "og:url", content: `${SITE_URL}/` },
+        { property: "og:site_name", content: SITE_NAME },
+        { property: "og:image", content: heroImage },
+        { name: "twitter:card", content: "summary_large_image" },
+        { name: "twitter:title", content: title },
+        { name: "twitter:description", content: description },
+        { name: "twitter:image", content: heroImage },
+      ],
+      links: [{ rel: "canonical", href: `${SITE_URL}/` }],
+      scripts: [{ type: "application/ld+json", children: JSON.stringify(jsonLd) }],
+    };
+  },
   loader: ({ context }) => context.queryClient.ensureQueryData(featuredCampaignQuery),
   component: CampaignPage,
   errorComponent: ({ error }) => (
@@ -72,15 +109,16 @@ function CampaignPage() {
   const statsInitial = data.stats;
 
   return (
-    <div className="min-h-screen bg-background text-foreground">
+    <div className="relative min-h-screen text-foreground">
+      <AmbientBackground />
       <SiteHeader />
       <Hero />
       <PrizeDialog />
       <main>
-        <PackagesSection />
-        <HowSection />
-        <PrizesSection />
-        <EntriesSection />
+        <Reveal><PackagesSection /></Reveal>
+        <Reveal><HowSection /></Reveal>
+        <Reveal><PrizesSection /></Reveal>
+        <Reveal><EntriesSection /></Reveal>
         <WinnersSection />
         <section id="faq" className="mx-auto max-w-3xl scroll-mt-20 px-4 py-20">
           <p className="eyebrow">{t("faq_eyebrow")}</p>
@@ -138,6 +176,7 @@ function CampaignPage() {
                 <Button asChild size="lg" className="bg-signal shadow-glow"><a href="#packages">{t("hero_cta_packages")}</a></Button>
                 <Button asChild size="lg" variant="glass"><a href="#prizes">{t("hero_cta_prizes")}</a></Button>
               </div>
+              <div className="mt-5"><SocialLinks /></div>
             </div>
             {grand && (
               <div className="relative">
@@ -447,7 +486,7 @@ function CampaignPage() {
         <p className="eyebrow">{t("prizes_eyebrow")}</p>
         <h2 className="mt-2 font-display text-3xl font-bold">{t("prizes_title")}</h2>
         <div className="mt-10 grid gap-6 md:grid-cols-2">
-          {prizes.map((p, i) => <PrizeCard key={p.id} prize={p} featured={i === 0} />)}
+          {prizes.map((p, i) => <Reveal key={p.id} delay={i * 140} className={i === 0 ? "md:col-span-2" : ""}><PrizeCard prize={p} featured={i === 0} /></Reveal>)}
         </div>
         <p className="mt-6 text-xs text-muted-foreground">{t("prizes_conditions")}</p>
       </section>
