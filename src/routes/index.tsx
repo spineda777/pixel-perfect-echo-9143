@@ -2,7 +2,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { Check, ChevronDown, Lock, Maximize2, ShieldCheck, Trophy, Users } from "lucide-react";
+import { Check, ChevronDown, Lock, Maximize2, ShieldCheck, Trophy, Users, Mail, User as UserIcon, Ticket, Sparkles, CreditCard } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { OrderConfirmationDialog } from "@/components/order-confirmation-dialog";
+import type { PayPalDoneResult } from "@/components/paypal-button";
 import heroAsset from "@/assets/hero-drop.jpg.asset.json";
 import { allowanceQuery, drawResultQuery, featuredCampaignQuery, publicEntriesQuery, statsQuery } from "@/lib/campaign-queries";
 import { formatMoney, formatNumber, getCountdown, packageAvailability, percentSold } from "@/lib/campaign-rules";
@@ -274,7 +278,7 @@ function CampaignPage() {
 
   function PackagesSection() {
     const search = Route.useSearch();
-    const { locale } = useI18n();
+    const { locale, lang } = useI18n();
     const { user, isAdmin } = useAuth();
     const stats = useQuery({ ...statsQuery(campaign.id), initialData: statsInitial }).data;
     const allowance = useQuery(allowanceQuery(campaign.id, user?.id ?? null)).data;
@@ -282,6 +286,23 @@ function CampaignPage() {
       search.packageId ?? packages.find((p) => p.is_recommended)?.id ?? null
     );
     const [open, setOpen] = useState(Boolean(search.checkout && search.packageId));
+
+    // Guest checkout form state (prefilled if user is already logged in)
+    const [guestName, setGuestName] = useState(
+      user?.user_metadata?.full_name || user?.email?.split("@")[0] || ""
+    );
+    const [guestEmail, setGuestEmail] = useState(user?.email || "");
+    const [nameError, setNameError] = useState("");
+    const [emailError, setEmailError] = useState("");
+
+    useEffect(() => {
+      if (user?.email && !guestEmail) {
+        setGuestEmail(user.email);
+      }
+      if (user?.user_metadata?.full_name && !guestName) {
+        setGuestName(user.user_metadata.full_name);
+      }
+    }, [user]);
 
     useEffect(() => {
       const storedPkg = sessionStorage.getItem("respawn_checkout_package");
@@ -295,7 +316,9 @@ function CampaignPage() {
         setOpen(true);
       }
     }, [search]);
-    const [done, setDone] = useState<{ orderCode: string; first: number | null; last: number | null; emailSent?: boolean; emailError?: string | undefined } | null>(null);
+
+    const [done, setDone] = useState<PayPalDoneResult | null>(null);
+    const [showConfirmation, setShowConfirmation] = useState(false);
     const simulate = useServerFn(simulateDemoOrder);
     const [isSimulating, setIsSimulating] = useState(false);
     const qc = useQueryClient();
@@ -306,13 +329,56 @@ function CampaignPage() {
 
     return (
       <section id="packages" className="mx-auto max-w-7xl scroll-mt-20 px-4 py-20">
+        {/* Social Proof & Trust Header Banner */}
+        <div className="mb-10 rounded-2xl border border-signal/30 bg-surface/80 p-5 shadow-card backdrop-blur-md">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-3.5">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-signal/15 text-signal ring-4 ring-signal/10">
+                <Ticket className="h-6 w-6" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-display text-lg font-bold text-foreground">
+                    {lang === "es" ? "Sorteo Oficial GTA VI" : "Official GTA VI Drop"}
+                  </span>
+                  <span className="rounded-full bg-signal/15 px-2.5 py-0.5 font-mono text-xs font-bold text-signal">
+                    15,000 {t("hero_max_entries")}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {lang === "es"
+                    ? "Sin registro obligatorio • Boletos desde $0.99 USD • Pago con PayPal y Tarjetas"
+                    : "No mandatory sign-up • Tickets from $0.99 USD • Pay with PayPal or Cards"}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5 font-mono text-xs">
+              <div className="rounded-lg border border-border/60 bg-surface-raised px-3.5 py-2">
+                <span className="text-muted-foreground">{t("progress_remaining")}: </span>
+                <span className="font-bold text-signal">{formatNumber(campaignRemaining, "en-US")}</span>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-surface-raised px-3.5 py-2">
+                <span className="text-muted-foreground">{t("progress_sold")}: </span>
+                <span className="font-bold text-foreground">{formatNumber(stats?.entries_sold ?? 0, "en-US")}</span>
+              </div>
+              <div className="rounded-lg border border-border/60 bg-surface-raised px-3.5 py-2">
+                <span className="text-muted-foreground">{lang === "es" ? "Sorteo: " : "Draw: "}</span>
+                <span className="font-bold text-primary">Ene–Feb 2027</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <p className="eyebrow">{t("packages_eyebrow")}</p>
         <h2 className="mt-2 font-display text-3xl font-bold">{t("packages_title")}</h2>
-        <p className="mt-2 text-muted-foreground">{t(isDemo ? "summary_demo_note" : "packages_sub")}</p>
+        <p className="mt-2 text-muted-foreground">{t("packages_sub_guest")}</p>
+
         <div className="mt-4 flex flex-wrap gap-4 font-mono text-xs text-muted-foreground">
           <span>{t("packages_max_account")}: {campaign.max_per_user}</span>
-          <span>{user && allowance ? `${t("packages_your_allowance")}: ${allowance.remaining}` : !user ? t("packages_signin_allowance") : ""}</span>
+          <span>{user && allowance ? `${t("packages_your_allowance")}: ${allowance.remaining}` : ""}</span>
         </div>
+
         <div className="mt-8 grid gap-8 lg:grid-cols-[1fr_340px]">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {packages.map((p) => {
@@ -326,137 +392,247 @@ function CampaignPage() {
                   disabled={!av.available}
                   onClick={() => setSelected(p.id)}
                   aria-pressed={active}
-                  className={`relative h-auto min-h-40 flex-col items-start gap-0 whitespace-normal rounded-lg border p-5 text-left transition ${active ? "border-primary bg-primary/10 shadow-glow" : "border-border bg-card-gradient hover:border-primary/60"} disabled:cursor-not-allowed disabled:opacity-40`}
+                  className={`relative h-auto min-h-40 flex-col items-start gap-0 whitespace-normal rounded-lg border p-5 text-left transition ${
+                    active ? "border-primary bg-primary/10 shadow-glow" : "border-border bg-card-gradient hover:border-primary/60"
+                  } disabled:cursor-not-allowed disabled:opacity-40`}
                 >
-                  {p.is_recommended && <span className="absolute -top-2.5 left-4 rounded bg-signal px-2 py-0.5 font-mono text-[10px] font-semibold text-primary-foreground">{t("packages_recommended")}</span>}
+                  {p.is_recommended && (
+                    <span className="absolute -top-2.5 left-4 rounded bg-signal px-2 py-0.5 font-mono text-[10px] font-semibold text-primary-foreground">
+                      {t("packages_recommended")}
+                    </span>
+                  )}
                   <p className="font-display text-3xl font-bold">{p.entries}</p>
-                  <p className="text-sm text-muted-foreground">{p.entries === 1 ? t("packages_entry") : t("packages_entries")}</p>
-                  <p className="mt-3 font-mono text-lg font-semibold">{formatMoney(p.price_cents, campaign.currency, locale)}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {p.entries === 1 ? t("packages_entry") : t("packages_entries")}
+                  </p>
+                  <p className="mt-3 font-mono text-lg font-semibold">
+                    {formatMoney(p.price_cents, campaign.currency, locale)}
+                  </p>
                   {!av.available && (
-                    <p className="mt-2 flex items-center gap-1 text-xs text-destructive"><Lock className="h-3 w-3" />{av.reason === "campaign_inventory" ? t("packages_blocked_inventory") : t("packages_blocked_personal")}</p>
+                    <p className="mt-2 flex items-center gap-1 text-xs text-destructive">
+                      <Lock className="h-3 w-3" />
+                      {av.reason === "campaign_inventory" ? t("packages_blocked_inventory") : t("packages_blocked_personal")}
+                    </p>
                   )}
                   {active && <Check className="absolute right-3 top-3 h-5 w-5 text-primary" />}
                 </Button>
               );
             })}
           </div>
+
           <aside className="h-fit rounded-xl border border-border bg-card-gradient p-5 shadow-card lg:sticky lg:top-20">
             <h3 className="font-display text-lg font-bold">{t("summary_title")}</h3>
             {sel ? (
               <dl className="mt-4 space-y-2 text-sm">
-                <div className="flex justify-between"><dt className="text-muted-foreground">{t("summary_package")}</dt><dd>{sel.entries} {sel.entries === 1 ? t("packages_entry") : t("packages_entries")}</dd></div>
-                <div className="flex justify-between"><dt className="text-muted-foreground">{t("summary_unit")}</dt><dd className="font-mono">{formatMoney(campaign.unit_price_cents, campaign.currency, locale)}</dd></div>
-                <div className="flex justify-between border-t border-border pt-2 text-base font-semibold"><dt>{t("summary_total")}</dt><dd className="font-mono">{formatMoney(sel.price_cents, campaign.currency, locale)}</dd></div>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">{t("summary_package")}</dt>
+                  <dd className="font-semibold">
+                    {sel.entries} {sel.entries === 1 ? t("packages_entry") : t("packages_entries")}
+                  </dd>
+                </div>
+                <div className="flex justify-between">
+                  <dt className="text-muted-foreground">{t("summary_unit")}</dt>
+                  <dd className="font-mono">{formatMoney(campaign.unit_price_cents, campaign.currency, locale)}</dd>
+                </div>
+                <div className="flex justify-between border-t border-border pt-2 text-base font-semibold">
+                  <dt>{t("summary_total")}</dt>
+                  <dd className="font-mono text-signal">{formatMoney(sel.price_cents, campaign.currency, locale)}</dd>
+                </div>
               </dl>
             ) : (
               <p className="mt-4 text-sm text-muted-foreground">{t("summary_none")}</p>
             )}
-            <Button className="mt-5 w-full bg-signal" size="lg" disabled={!sel || !selAvail?.available} onClick={() => setOpen(true)}>{t("summary_confirm")}</Button>
-            <p className="mt-3 text-xs text-muted-foreground">{t(isDemo ? "summary_demo_note" : "summary_live_note")}</p>
+
+            <Button
+              className="mt-5 w-full bg-signal text-signal-foreground hover:bg-signal/90 font-semibold shadow-glow"
+              size="lg"
+              disabled={!sel || !selAvail?.available}
+              onClick={() => setOpen(true)}
+            >
+              {lang === "es" ? "Continuar a pagar" : "Proceed to checkout"}
+            </Button>
+
+            <div className="mt-4 space-y-1.5 text-[11px] text-muted-foreground">
+              <p className="flex items-center gap-1.5">
+                <Check className="h-3.5 w-3.5 text-signal shrink-0" />
+                {lang === "es" ? "Sin necesidad de crear cuenta" : "No account creation required"}
+              </p>
+              <p className="flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-signal shrink-0" />
+                {lang === "es" ? "Asignación instantánea de números" : "Instant ticket allocation"}
+              </p>
+            </div>
           </aside>
         </div>
+
+        {/* Guest Checkout Dialog */}
         <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent>
+          <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto border-signal/30 p-6 bg-background/95 backdrop-blur-xl">
             <DialogHeader>
-              <DialogTitle>{t(isDemo ? "confirm_title" : "confirm_title_live")}</DialogTitle>
-              <DialogDescription>{t(isDemo ? "confirm_body" : "confirm_body_live")}</DialogDescription>
+              <DialogTitle className="font-display text-xl font-bold flex items-center gap-2">
+                <Ticket className="h-5 w-5 text-signal" />
+                {t("checkout_guest_title")}
+              </DialogTitle>
+              <DialogDescription className="text-xs text-muted-foreground">
+                {t("checkout_guest_sub")}
+              </DialogDescription>
             </DialogHeader>
-            <ul className="space-y-2 text-sm">
-              <li className="flex gap-2"><Check className="h-4 w-4 shrink-0 text-success" />{t("confirm_eligible")}</li>
-              <li className="flex gap-2"><ShieldCheck className="h-4 w-4 shrink-0 text-primary" />{t("confirm_verify")}</li>
-            </ul>
-            {!user && sel && !done && (
-              <Button
-                asChild
-                className="w-full"
-                onClick={() => {
-                  if (sel) {
-                    sessionStorage.setItem("respawn_checkout_package", sel.id);
-                    sessionStorage.setItem("respawn_checkout_open", "true");
-                  }
-                }}
-              >
-                <Link to="/auth" search={{ packageId: sel?.id, checkout: true }}>
-                  {t("nav_signin")}
-                </Link>
-              </Button>
-            )}
 
-            {user && sel && !done && (() => {
-              const canSimulate = isAdmin;
-              return (
-                <div className="space-y-4 pt-2">
-                  {canSimulate && (
-                    <div className="rounded-lg border border-signal/40 bg-signal/10 p-3 space-y-2">
-                      <div className="flex items-center justify-between text-xs font-mono text-signal">
-                        <span>{isAdmin ? "MODO TEST ADMIN" : "MODO DEMO"}</span>
-                        <span>$0.00</span>
-                      </div>
-                      <Button
-                        className="w-full bg-signal shadow-glow hover:bg-signal/90"
-                        size="lg"
-                        disabled={isSimulating}
-                        onClick={async () => {
-                          try {
-                            setIsSimulating(true);
-                            const r = await simulate({ data: { packageId: sel.id } });
-                            setDone(r);
-                            qc.invalidateQueries({ queryKey: ["campaign", campaign.id] });
-                            toast.success(t("confirm_demo_success"));
-                          } catch (err) {
-                            toast.error(err instanceof Error ? err.message : "Error al procesar compra de prueba");
-                          } finally {
-                            setIsSimulating(false);
-                          }
-                        }}
-                      >
-                        {isSimulating ? "Procesando..." : t("confirm_demo_cta")}
-                      </Button>
-                      <p className="text-center font-mono text-xs text-muted-foreground">
-                        {t("confirm_demo_hint")}
-                      </p>
-                    </div>
-                  )}
-
-                  {!isDemo && (
-                    <div className="space-y-2">
-                      {canSimulate && (
-                        <div className="relative flex py-1 items-center">
-                          <div className="flex-grow border-t border-border"></div>
-                          <span className="flex-shrink mx-3 text-xs text-muted-foreground uppercase">o pagar con PayPal real</span>
-                          <div className="flex-grow border-t border-border"></div>
-                        </div>
-                      )}
-                      <PayPalButton
-                        packageId={sel.id}
-                        currency={campaign.currency}
-                        onDone={(r) => {
-                          if (r.ok) {
-                            setDone(r);
-                            qc.invalidateQueries({ queryKey: ["campaign", campaign.id] });
-                            toast.success(r.orderCode);
-                          } else {
-                            toast.error(r.error);
-                          }
-                        }}
-                      />
-                    </div>
-                  )}
+            {sel && (
+              <div className="rounded-lg border border-border/70 bg-surface/80 p-3.5 space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium text-muted-foreground">{t("summary_package")}:</span>
+                  <span className="font-display font-bold text-foreground">
+                    {sel.entries} {sel.entries === 1 ? t("packages_entry") : t("packages_entries")}
+                  </span>
                 </div>
-              );
-            })()}
-            {done && (
-              <div className="rounded-lg border border-primary bg-primary/10 p-4 font-mono text-sm">
-                <p className="font-semibold text-primary">✓ {done.orderCode}</p>
-                <p className="mt-1">#{String(done.first).padStart(5, "0")} – #{String(done.last).padStart(5, "0")}</p>
-                <p className="mt-2 text-xs text-muted-foreground">{done.emailSent === false ? t("confirm_email_failed") : t("confirm_email_sent")}</p>
-                {done.emailSent !== false && <p className="mt-2 text-xs text-muted-foreground">{t("confirm_spam")}</p>}
-                {done.emailSent === false && isAdmin && done.emailError && <p className="mt-1 break-words text-[10px] text-destructive">{done.emailError}</p>}
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">{t("summary_total")}:</span>
+                  <span className="font-mono font-bold text-signal text-lg">
+                    {formatMoney(sel.price_cents, campaign.currency, locale)}
+                  </span>
+                </div>
               </div>
             )}
-            <DialogFooter><Button variant="outline" onClick={() => { setOpen(false); setDone(null); }}>{t("confirm_close")}</Button></DialogFooter>
+
+            {/* Guest Form Inputs */}
+            <div className="space-y-3.5 py-1">
+              <div className="space-y-1.5">
+                <Label htmlFor="guest-name" className="text-xs font-semibold flex items-center gap-1.5">
+                  <UserIcon className="h-3.5 w-3.5 text-signal" />
+                  {t("checkout_name_label")}
+                </Label>
+                <Input
+                  id="guest-name"
+                  placeholder={t("checkout_name_placeholder")}
+                  value={guestName}
+                  onChange={(e) => {
+                    setGuestName(e.target.value);
+                    if (e.target.value.trim().length >= 2) setNameError("");
+                  }}
+                  className="bg-surface/50 border-border focus:border-signal"
+                />
+                {nameError && <p className="text-[11px] text-destructive">{nameError}</p>}
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="guest-email" className="text-xs font-semibold flex items-center gap-1.5">
+                  <Mail className="h-3.5 w-3.5 text-signal" />
+                  {t("checkout_email_label")}
+                </Label>
+                <Input
+                  id="guest-email"
+                  type="email"
+                  placeholder={t("checkout_email_placeholder")}
+                  value={guestEmail}
+                  onChange={(e) => {
+                    setGuestEmail(e.target.value);
+                    if (e.target.value.includes("@") && e.target.value.includes(".")) setEmailError("");
+                  }}
+                  className="bg-surface/50 border-border focus:border-signal"
+                />
+                <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <ShieldCheck className="h-3 w-3 text-signal shrink-0" />
+                  {t("checkout_email_hint")}
+                </p>
+                {emailError && <p className="text-[11px] text-destructive">{emailError}</p>}
+              </div>
+            </div>
+
+            {/* Payment Options */}
+            {sel && (
+              <div className="space-y-3 pt-2 border-t border-border/60">
+                {isAdmin && (
+                  <div className="rounded-lg border border-signal/40 bg-signal/10 p-3 space-y-2">
+                    <div className="flex items-center justify-between text-xs font-mono text-signal">
+                      <span>MODO TEST ADMIN (SIMULACIÓN)</span>
+                      <span>$0.00</span>
+                    </div>
+                    <Button
+                      className="w-full bg-signal shadow-glow hover:bg-signal/90"
+                      size="sm"
+                      disabled={isSimulating}
+                      onClick={async () => {
+                        if (!guestName.trim()) {
+                          setNameError("Por favor ingresa tu nombre o alias");
+                          return;
+                        }
+                        if (!guestEmail.trim() || !guestEmail.includes("@")) {
+                          setEmailError("Por favor ingresa un correo válido");
+                          return;
+                        }
+                        try {
+                          setIsSimulating(true);
+                          const r = await simulate({
+                            data: {
+                              packageId: sel.id,
+                              guestName: guestName.trim(),
+                              guestEmail: guestEmail.trim(),
+                            },
+                          });
+                          setDone({
+                            ok: true,
+                            orderCode: r.orderCode,
+                            first: r.first,
+                            last: r.last,
+                            entriesCount: sel.entries,
+                            payerName: guestName,
+                            payerEmail: guestEmail,
+                            emailSent: r.emailSent,
+                            emailError: r.emailError,
+                          });
+                          setOpen(false);
+                          setShowConfirmation(true);
+                          qc.invalidateQueries({ queryKey: ["campaign", campaign.id] });
+                          toast.success("Compra de prueba completada con éxito");
+                        } catch (err) {
+                          toast.error(err instanceof Error ? err.message : "Error al procesar compra de prueba");
+                        } finally {
+                          setIsSimulating(false);
+                        }
+                      }}
+                    >
+                      {isSimulating ? "Procesando..." : t("confirm_demo_cta")}
+                    </Button>
+                  </div>
+                )}
+
+                <div className="space-y-2">
+                  <PayPalButton
+                    packageId={sel.id}
+                    currency={campaign.currency}
+                    guestName={guestName}
+                    guestEmail={guestEmail}
+                    onDone={(r) => {
+                      if (r.ok) {
+                        setDone(r);
+                        setOpen(false);
+                        setShowConfirmation(true);
+                        qc.invalidateQueries({ queryKey: ["campaign", campaign.id] });
+                        toast.success(`Orden ${r.orderCode} confirmada`);
+                      } else {
+                        toast.error(r.error);
+                      }
+                    }}
+                  />
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                {t("confirm_close")}
+              </Button>
+            </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        {/* Order Confirmation Screen with Ticket Card and Screenshot / Image Download */}
+        <OrderConfirmationDialog
+          open={showConfirmation}
+          onOpenChange={setShowConfirmation}
+          data={done}
+        />
       </section>
     );
   }

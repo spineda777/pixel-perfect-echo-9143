@@ -43,6 +43,13 @@
       "when": 1795480850914,
       "tag": "0005_paid_campaign_sales_statistics",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1795500000000,
+      "tag": "0006_guest_checkout",
+      "breakpoints": true
     }
   ]
 }

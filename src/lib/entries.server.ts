@@ -33,7 +33,7 @@ export async function findUserByEmail(
  * atomically in the database (allocate_entries + trigger). A future payment webhook
  * should call this after confirming a successful payment.
  */
-export async function allocateEntriesForUser(campaignId: string, userId: string, quantity: number) {
+export async function allocateEntriesForUser(campaignId: string, userId: string | null, quantity: number) {
   const { data, error } = await supabaseAdmin.rpc("allocate_entries", {
     _campaign_id: campaignId,
     _user_id: userId,
@@ -44,7 +44,7 @@ export async function allocateEntriesForUser(campaignId: string, userId: string,
 }
 
 export async function writeAudit(row: {
-  actorId: string;
+  actorId: string | null;
   action: string;
   tableName: string;
   recordId: string;
@@ -70,7 +70,7 @@ export async function loadAllValidEntries(campaignId: string) {
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabaseAdmin
       .from("entries")
-      .select("id, entry_number, user_id, orders(paypal_capture_id)")
+      .select("id, entry_number, user_id, orders(paypal_capture_id, payer_email)")
       .eq("campaign_id", campaignId)
       .eq("status", "valid")
       .order("entry_number")
@@ -79,7 +79,8 @@ export async function loadAllValidEntries(campaignId: string) {
     // Entries from admin test simulations are never eligible for the draw.
     for (const e of data ?? []) {
       if (isTestEntry(e as unknown as Parameters<typeof isTestEntry>[0])) continue;
-      out.push({ id: e.id, entry_number: e.entry_number, user_id: e.user_id });
+      const participantId = e.user_id || (e.orders as any)?.payer_email || e.id;
+      out.push({ id: e.id, entry_number: e.entry_number, user_id: participantId });
     }
     if (!data || data.length < 1000) break;
   }
@@ -108,11 +109,21 @@ export async function enrichForAdmin(stored: {
 }) {
   const winners = await Promise.all(
     stored.winners.map(async (w) => {
-      const { data } = await supabaseAdmin.auth.admin.getUserById(w.user_id);
+      let email = "(unknown)";
+      if (w.user_id && w.user_id.includes("@")) {
+        email = w.user_id;
+      } else if (w.user_id) {
+        try {
+          const { data } = await supabaseAdmin.auth.admin.getUserById(w.user_id);
+          if (data?.user?.email) email = data.user.email;
+        } catch {
+          // guest participant identifier
+        }
+      }
       return {
         prize_rank: w.prize_rank,
         entry_number: w.entry_number,
-        email: data.user?.email ?? "(unknown)",
+        email,
       };
     }),
   );

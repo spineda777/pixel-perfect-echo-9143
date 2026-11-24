@@ -2,11 +2,26 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
-/** Sends the order confirmation and never throws. Failures are returned and stored in the audit log so they are not silent. */
+async function getOptionalUserId(): Promise<string | null> {
+  try {
+    const { getEvent } = await import("@tanstack/react-start/server");
+    const event = getEvent();
+    const authHeader = event?.request?.headers?.get("authorization");
+    if (!authHeader?.startsWith("Bearer ")) return null;
+    const token = authHeader.slice("Bearer ".length).trim();
+    if (!token) return null;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data } = await supabaseAdmin.auth.getUser(token);
+    return data?.user?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 async function sendConfirmation(o: {
-  userId: string;
-  fallbackEmail?: string | undefined;
-  recipientName?: string | undefined;
+  userId?: string | null;
+  fallbackEmail?: string | null;
+  recipientName?: string | null;
   orderId: string;
   orderCode: string;
   campaignTitle: string;
@@ -20,13 +35,20 @@ async function sendConfirmation(o: {
   try {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { sendOrderConfirmationEmail } = await import("./resend.server");
-    const { data: u } = await supabaseAdmin.auth.admin.getUserById(o.userId);
-    const to = u?.user?.email || o.fallbackEmail;
-    if (!to) error = "No recipient email on the account";
+    let to = o.fallbackEmail ?? undefined;
+    if (o.userId) {
+      try {
+        const { data: u } = await supabaseAdmin.auth.admin.getUserById(o.userId);
+        if (u?.user?.email) to = u.user.email;
+      } catch {
+        /* fallback to fallbackEmail */
+      }
+    }
+    if (!to) error = "No recipient email available for confirmation";
     else {
       const r = await sendOrderConfirmationEmail({
         to,
-        recipientName: o.recipientName || u?.user?.user_metadata?.["full_name"] || undefined,
+        recipientName: o.recipientName ?? undefined,
         orderCode: o.orderCode,
         campaignTitle: o.campaignTitle,
         entriesCount: o.entriesCount,
@@ -44,7 +66,7 @@ async function sendConfirmation(o: {
     try {
       const { writeAudit } = await import("./entries.server");
       await writeAudit({
-        actorId: o.userId,
+        actorId: o.userId ?? null,
         action: "EMAIL_FAILED",
         tableName: "orders",
         recordId: o.orderId,
@@ -60,46 +82,67 @@ async function sendConfirmation(o: {
 }
 
 export const createPaypalOrder = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ packageId: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
+  .validator((d) =>
+    z
+      .object({
+        packageId: z.string().uuid(),
+        guestName: z.string().trim().min(1, "Ingresa tu nombre o alias").max(100),
+        guestEmail: z.string().trim().email("Ingresa un correo electrónico válido"),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { paypal } = await import("./paypal.server");
+    const optionalUserId = await getOptionalUserId();
+
     const { data: pkg } = await supabaseAdmin
       .from("campaign_packages")
-      .select("id, entries, price_cents, is_active, campaign_id, campaigns(mode, currency)")
+      .select("id, entries, price_cents, is_active, campaign_id, campaigns(mode, currency, max_inventory, max_per_user)")
       .eq("id", data.packageId)
       .single();
     if (!pkg || !pkg.is_active) throw new Error("Package not available");
-    const camp = pkg.campaigns as unknown as { mode: string; currency: string };
+    const camp = pkg.campaigns as unknown as {
+      mode: string;
+      currency: string;
+      max_inventory: number;
+      max_per_user: number;
+    };
     if (camp.mode !== "production") throw new Error("Campaign is in demo mode");
-    const { data: allow } = await context.supabase.rpc("get_my_allowance", {
-      _campaign_id: pkg.campaign_id,
-    });
-    const a = allow?.[0];
-    if (!a?.email_verified) throw new Error("Please verify your email first");
-    if (a.remaining < pkg.entries) throw new Error("Personal entry limit exceeded");
+
+    // Check remaining inventory
+    const { count: validCount } = await supabaseAdmin
+      .from("entries")
+      .select("*", { count: "exact", head: true })
+      .eq("campaign_id", pkg.campaign_id)
+      .eq("status", "valid");
+    if ((validCount ?? 0) + pkg.entries > camp.max_inventory) {
+      throw new Error("No hay suficiente inventario disponible para este paquete");
+    }
 
     const { data: order, error } = await supabaseAdmin
       .from("orders")
       .insert({
         campaign_id: pkg.campaign_id,
-        user_id: context.userId,
+        user_id: optionalUserId,
         package_id: pkg.id,
         entries_count: pkg.entries,
         amount_cents: pkg.price_cents,
         currency: camp.currency,
+        payer_name: data.guestName,
+        payer_email: data.guestEmail,
+        status: "created",
       })
       .select("id, order_code")
       .single();
-    if (error || !order) throw new Error("Could not create order");
-    let userEmail: string | undefined;
-    try {
-      const { data: u } = await supabaseAdmin.auth.admin.getUserById(context.userId);
-      userEmail = u?.user?.email;
-    } catch {
-      /* non-fatal */
+    if (error || !order) {
+      console.error("Order creation error:", error);
+      throw new Error("Could not create order: " + (error?.message || "unknown"));
     }
+
+    const nameParts = data.guestName.split(" ").filter(Boolean);
+    const givenName = nameParts[0] || data.guestName;
+    const surname = nameParts.slice(1).join(" ") || undefined;
 
     const pp = await paypal<{ id: string }>("/v2/checkout/orders", {
       method: "POST",
@@ -110,7 +153,7 @@ export const createPaypalOrder = createServerFn({ method: "POST" })
           {
             reference_id: order.order_code,
             custom_id: order.id,
-            description: `${pkg.entries} ${pkg.entries === 1 ? "entry" : "entries"} - Respawn Club`,
+            description: `${pkg.entries} ${pkg.entries === 1 ? "boleto" : "boletos"} - Respawn Club`,
             amount: { currency_code: camp.currency, value: (pkg.price_cents / 100).toFixed(2) },
           },
         ],
@@ -120,17 +163,22 @@ export const createPaypalOrder = createServerFn({ method: "POST" })
           user_action: "PAY_NOW",
           landing_page: "BILLING",
         },
-        ...(userEmail ? { payer: { email_address: userEmail } } : {}),
+        payer: {
+          email_address: data.guestEmail,
+          name: {
+            given_name: givenName,
+            ...(surname ? { surname } : {}),
+          },
+        },
       }),
     });
     await supabaseAdmin.from("orders").update({ paypal_order_id: pp.id }).eq("id", order.id);
-    return { paypalOrderId: pp.id };
+    return { paypalOrderId: pp.id, orderCode: order.order_code };
   });
 
 export const capturePaypalOrder = createServerFn({ method: "POST" })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ paypalOrderId: z.string().min(5).max(64) }).parse(d))
-  .handler(async ({ data, context }) => {
+  .validator((d) => z.object({ paypalOrderId: z.string().min(5).max(64) }).parse(d))
+  .handler(async ({ data }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { paypal } = await import("./paypal.server");
     const { allocateEntriesForUser } = await import("./entries.server");
@@ -138,15 +186,19 @@ export const capturePaypalOrder = createServerFn({ method: "POST" })
       .from("orders")
       .select("*")
       .eq("paypal_order_id", data.paypalOrderId)
-      .eq("user_id", context.userId)
       .single();
     if (!order) throw new Error("Order not found");
-    if (order.status === "completed")
+    if (order.status === "completed") {
       return {
         orderCode: order.order_code,
         first: order.first_entry_number,
         last: order.last_entry_number,
+        entriesCount: order.entries_count,
+        payerName: order.payer_name,
+        payerEmail: order.payer_email,
+        emailSent: true,
       };
+    }
 
     const cap = await paypal<any>(`/v2/checkout/orders/${data.paypalOrderId}/capture`, {
       method: "POST",
@@ -161,9 +213,12 @@ export const capturePaypalOrder = createServerFn({ method: "POST" })
       await supabaseAdmin.from("orders").update({ status: "failed" }).eq("id", order.id);
       throw new Error("Payment was not completed");
     }
-    const payerName = [cap.payer?.name?.given_name, cap.payer?.name?.surname]
+    const paypalPayerName = [cap.payer?.name?.given_name, cap.payer?.name?.surname]
       .filter(Boolean)
       .join(" ");
+    const finalPayerName = order.payer_name || paypalPayerName || "Participante";
+    const finalPayerEmail = order.payer_email || cap.payer?.email_address;
+
     const entries = await allocateEntriesForUser(
       order.campaign_id,
       order.user_id,
@@ -172,15 +227,16 @@ export const capturePaypalOrder = createServerFn({ method: "POST" })
     const ids = entries.map((e: { id: string }) => e.id);
     const nums = entries.map((e: { entry_number: number }) => e.entry_number);
     await supabaseAdmin.from("entries").update({ order_id: order.id }).in("id", ids);
-    const first = Math.min(...nums),
-      last = Math.max(...nums);
+    const first = nums.length ? Math.min(...nums) : 1;
+    const last = nums.length ? Math.max(...nums) : order.entries_count;
+
     await supabaseAdmin
       .from("orders")
       .update({
         status: "completed",
         paypal_capture_id: capture.id,
-        payer_email: cap.payer?.email_address ?? null,
-        payer_name: payerName || null,
+        payer_email: finalPayerEmail ?? null,
+        payer_name: finalPayerName || null,
         first_entry_number: first,
         last_entry_number: last,
         completed_at: new Date().toISOString(),
@@ -189,8 +245,8 @@ export const capturePaypalOrder = createServerFn({ method: "POST" })
 
     const mail = await sendConfirmation({
       userId: order.user_id,
-      fallbackEmail: cap.payer?.email_address,
-      recipientName: payerName || undefined,
+      fallbackEmail: finalPayerEmail,
+      recipientName: finalPayerName || undefined,
       orderId: order.id,
       orderCode: order.order_code,
       campaignTitle: "GTA VI Legendary Drop",
@@ -205,6 +261,9 @@ export const capturePaypalOrder = createServerFn({ method: "POST" })
       orderCode: order.order_code,
       first,
       last,
+      entriesCount: order.entries_count,
+      payerName: finalPayerName,
+      payerEmail: finalPayerEmail,
       emailSent: mail.sent,
       emailError: mail.error,
     };
@@ -212,7 +271,15 @@ export const capturePaypalOrder = createServerFn({ method: "POST" })
 
 export const simulateDemoOrder = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d) => z.object({ packageId: z.string().uuid() }).parse(d))
+  .validator((d) =>
+    z
+      .object({
+        packageId: z.string().uuid(),
+        guestName: z.string().optional(),
+        guestEmail: z.string().optional(),
+      })
+      .parse(d),
+  )
   .handler(async ({ data, context }) => {
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { allocateEntriesForUser } = await import("./entries.server");
@@ -236,6 +303,9 @@ export const simulateDemoOrder = createServerFn({ method: "POST" })
     const a = allow?.[0];
     if (a && a.remaining < pkg.entries) throw new Error("Personal entry limit exceeded");
 
+    const payerName = data.guestName || "Demo Tester";
+    const payerEmail = data.guestEmail || undefined;
+
     const { data: order, error } = await supabaseAdmin
       .from("orders")
       .insert({
@@ -246,7 +316,9 @@ export const simulateDemoOrder = createServerFn({ method: "POST" })
         amount_cents: pkg.price_cents,
         currency: camp.currency,
         paypal_capture_id: "DEMO_SIMULATION",
-        payer_name: "Demo Tester",
+        payer_name: payerName,
+        payer_email: payerEmail,
+        status: "completed",
       })
       .select("id, order_code")
       .single();
@@ -262,7 +334,6 @@ export const simulateDemoOrder = createServerFn({ method: "POST" })
     await supabaseAdmin
       .from("orders")
       .update({
-        status: "completed",
         first_entry_number: first,
         last_entry_number: last,
         completed_at: new Date().toISOString(),
@@ -271,6 +342,8 @@ export const simulateDemoOrder = createServerFn({ method: "POST" })
 
     const mail = await sendConfirmation({
       userId: context.userId,
+      fallbackEmail: payerEmail,
+      recipientName: payerName,
       orderId: order.id,
       orderCode: order.order_code,
       campaignTitle: "GTA VI Legendary Drop (Demo)",
@@ -285,6 +358,9 @@ export const simulateDemoOrder = createServerFn({ method: "POST" })
       orderCode: order.order_code,
       first,
       last,
+      entriesCount: pkg.entries,
+      payerName,
+      payerEmail: payerEmail ?? null,
       emailSent: mail.sent,
       emailError: mail.error,
     };
@@ -306,7 +382,15 @@ export const exportOrders = createServerFn({ method: "GET" })
       .order("first_entry_number");
     const rows = [];
     for (const o of data ?? []) {
-      const { data: u } = await supabaseAdmin.auth.admin.getUserById(o.user_id);
+      let accountEmail = "";
+      if (o.user_id) {
+        try {
+          const { data: u } = await supabaseAdmin.auth.admin.getUserById(o.user_id);
+          accountEmail = u.user?.email ?? "";
+        } catch {
+          // guest
+        }
+      }
       rows.push({
         order_code: o.order_code,
         first: o.first_entry_number,
@@ -314,7 +398,7 @@ export const exportOrders = createServerFn({ method: "GET" })
         entries: o.entries_count,
         amount: (o.amount_cents / 100).toFixed(2),
         currency: o.currency,
-        account_email: u.user?.email ?? "",
+        account_email: accountEmail || o.payer_email || "(Invitado)",
         payer_name: o.payer_name ?? "",
         payer_email: o.payer_email ?? "",
         paypal_capture_id: o.paypal_capture_id ?? "",

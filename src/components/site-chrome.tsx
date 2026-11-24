@@ -5,6 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { LANGS, useI18n } from "@/lib/i18n";
 import { Instagram, Music2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { InAppBrowserBanner } from "@/components/in-app-browser-banner";
 
 export function DemoBanner() {
   const { t } = useI18n();
@@ -21,7 +22,7 @@ export function LangSwitch() {
     <div className="flex rounded-md border border-border p-0.5" role="group" aria-label="Language">
       {LANGS.map((l) => (
         <Button
-            variant="ghost"
+          variant="ghost"
           key={l.code}
           type="button"
           onClick={() => setLang(l.code)}
@@ -36,10 +37,20 @@ export function LangSwitch() {
 }
 
 export function SocialLinks() {
-  return <div className="flex items-center gap-1">
-    <Button asChild variant="glass" size="icon"><a href="https://www.instagram.com/rickyrespawn06/" target="_blank" rel="noopener noreferrer" aria-label="Instagram @rickyrespawn06" title="Instagram @rickyrespawn06"><Instagram /></a></Button>
-    <Button asChild variant="glass" size="icon"><a href="https://www.tiktok.com/@rickyrespawn06" target="_blank" rel="noopener noreferrer" aria-label="TikTok @rickyrespawn06" title="TikTok @rickyrespawn06"><Music2 /></a></Button>
-  </div>;
+  return (
+    <div className="flex items-center gap-1">
+      <Button asChild variant="glass" size="icon">
+        <a href="https://www.instagram.com/rickyrespawn06/" target="_blank" rel="noopener noreferrer" aria-label="Instagram @rickyrespawn06" title="Instagram @rickyrespawn06">
+          <Instagram className="h-4 w-4" />
+        </a>
+      </Button>
+      <Button asChild variant="glass" size="icon">
+        <a href="https://www.tiktok.com/@rickyrespawn06" target="_blank" rel="noopener noreferrer" aria-label="TikTok @rickyrespawn06" title="TikTok @rickyrespawn06">
+          <Music2 className="h-4 w-4" />
+        </a>
+      </Button>
+    </div>
+  );
 }
 
 export function SiteHeader() {
@@ -56,36 +67,39 @@ export function SiteHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
-      <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4">
-        <Link to="/" className="font-display text-lg font-bold tracking-tight">
-          RESPAWN<span className="text-signal">CLUB</span>
-        </Link>
-        <nav className="ml-6 hidden items-center gap-5 text-sm text-muted-foreground lg:flex">
-          <a href="/#packages" className="hover:text-foreground">{t("nav_packages")}</a>
-          <a href="/#how" className="hover:text-foreground">{t("nav_how")}</a>
-          <a href="/#prizes" className="hover:text-foreground">{t("nav_prizes")}</a>
-          <a href="/#faq" className="hover:text-foreground">{t("nav_faq")}</a>
-          <Link to="/rules" className="hover:text-foreground">{t("nav_rules")}</Link>
-        </nav>
-        <div className="ml-auto flex items-center gap-2">
-          <div className="hidden xl:block"><SocialLinks /></div>
-          <LangSwitch />
-          {isAdmin && (
-            <Button asChild variant="ghost" size="sm">
-              <Link to="/admin">{t("nav_admin")}</Link>
-            </Button>
-          )}
-          {user ? (
-            <Button variant="outline" size="sm" onClick={signOut}>{t("nav_signout")}</Button>
-          ) : (
-            <Button asChild size="sm">
-              <Link to="/auth">{t("nav_signin")}</Link>
-            </Button>
-          )}
+    <>
+      <InAppBrowserBanner />
+      <header className="sticky top-0 z-40 border-b border-border bg-background/85 backdrop-blur">
+        <div className="mx-auto flex h-16 max-w-7xl items-center gap-4 px-4">
+          <Link to="/" className="font-display text-lg font-bold tracking-tight">
+            RESPAWN<span className="text-signal">CLUB</span>
+          </Link>
+          <nav className="ml-6 hidden items-center gap-5 text-sm text-muted-foreground lg:flex">
+            <a href="/#packages" className="hover:text-foreground">{t("nav_packages")}</a>
+            <a href="/#how" className="hover:text-foreground">{t("nav_how")}</a>
+            <a href="/#prizes" className="hover:text-foreground">{t("nav_prizes")}</a>
+            <a href="/#faq" className="hover:text-foreground">{t("nav_faq")}</a>
+            <Link to="/rules" className="hover:text-foreground">{t("nav_rules")}</Link>
+          </nav>
+          <div className="ml-auto flex items-center gap-2">
+            <div className="hidden xl:block"><SocialLinks /></div>
+            <LangSwitch />
+            {isAdmin && (
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/admin">{t("nav_admin")}</Link>
+              </Button>
+            )}
+            {user ? (
+              <Button variant="outline" size="sm" onClick={signOut}>{t("nav_signout")}</Button>
+            ) : (
+              <Button asChild variant="ghost" size="sm">
+                <Link to="/auth">{t("nav_signin")}</Link>
+              </Button>
+            )}
+          </div>
         </div>
-      </div>
-    </header>
+      </header>
+    </>
   );
 }
 

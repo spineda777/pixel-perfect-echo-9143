@@ -162,7 +162,7 @@ export type Database = {
           id: string
           order_id: string | null
           status: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           campaign_id: string
@@ -171,7 +171,7 @@ export type Database = {
           id?: string
           order_id?: string | null
           status?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           campaign_id?: string
@@ -180,7 +180,7 @@ export type Database = {
           id?: string
           order_id?: string | null
           status?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -255,7 +255,7 @@ export type Database = {
           paypal_capture_id: string | null
           paypal_order_id: string | null
           status: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           amount_cents: number
@@ -274,7 +274,7 @@ export type Database = {
           paypal_capture_id?: string | null
           paypal_order_id?: string | null
           status?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           amount_cents?: number
@@ -293,7 +293,7 @@ export type Database = {
           paypal_capture_id?: string | null
           paypal_order_id?: string | null
           status?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -437,7 +437,7 @@ export type Database = {
     Functions: {
       admins_exist: { Args: never; Returns: boolean }
       allocate_entries: {
-        Args: { _campaign_id: string; _quantity: number; _user_id: string }
+        Args: { _campaign_id: string; _quantity: number; _user_id: string | null }
         Returns: {
           campaign_id: string
           created_at: string
@@ -445,7 +445,7 @@ export type Database = {
           id: string
           order_id: string | null
           status: string
-          user_id: string
+          user_id: string | null
         }[]
         SetofOptions: {
           from: "*"
