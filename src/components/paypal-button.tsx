@@ -14,27 +14,34 @@ const LIVE_PAYPAL_CLIENT_ID =
 
 let sdkPromise: Promise<void> | null = null;
 
-function loadSdk(currency: string) {
+/**
+ * Preload the PayPal SDK immediately so that buttons render instantaneously
+ * when the checkout dialog is opened, without network delay.
+ */
+export function preloadPayPalSdk(currency = "USD"): Promise<void> {
+  if (typeof window === "undefined") return Promise.resolve();
+
+  if (window.paypal?.Buttons) {
+    return Promise.resolve();
+  }
+
+  if (sdkPromise) return sdkPromise;
+
   const id =
     import.meta.env["VITE_LOVABLE_CONNECTOR_PAYPAL_CLIENT_ID"] ||
     LIVE_PAYPAL_CLIENT_ID;
 
   const existingScript = document.querySelector('script[src*="paypal.com/sdk/js"]');
-  if (window.paypal && existingScript && existingScript.getAttribute("src")?.includes(id)) {
-    return Promise.resolve();
+  if (existingScript) {
+    sdkPromise = new Promise((resolve) => {
+      if (window.paypal?.Buttons) return resolve();
+      existingScript.addEventListener("load", () => resolve());
+    });
+    return sdkPromise;
   }
-
-  if (existingScript && !existingScript.getAttribute("src")?.includes(id)) {
-    existingScript.remove();
-    delete window.paypal;
-    sdkPromise = null;
-  }
-
-  if (sdkPromise) return sdkPromise;
 
   sdkPromise = new Promise((res, rej) => {
     const s = document.createElement("script");
-    // Enable direct debit and credit card funding, disable venmo and paylater
     s.src = `https://www.paypal.com/sdk/js?client-id=${id}&currency=${currency}&intent=capture&enable-funding=card&disable-funding=paylater,venmo`;
     s.async = true;
     s.onload = () => res();
@@ -42,8 +49,9 @@ function loadSdk(currency: string) {
       sdkPromise = null;
       rej(new Error("No se pudo cargar la pasarela de pago. Revisa tu conexión."));
     };
-    document.body.appendChild(s);
+    document.head.appendChild(s);
   });
+
   return sdkPromise;
 }
 
@@ -74,31 +82,46 @@ export function PayPalButton({
   disabled?: boolean;
   onDone: (r: PayPalDoneResult | { ok: false; error: string }) => void;
 }) {
-  const ref = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const create = useServerFn(createPaypalOrder);
   const capture = useServerFn(capturePaypalOrder);
+  
+  // Track loading state (if already in window, it will mount immediately)
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState<string | null>(null);
 
-  const isValidInput = Boolean(
-    guestName.trim().length >= 2 &&
-    guestEmail.trim().includes("@") &&
-    guestEmail.trim().includes(".")
-  );
+  // Keep latest user inputs in refs so that typing in the form NEVER triggers
+  // unmounting/re-rendering of the PayPal iframe.
+  const packageIdRef = useRef(packageId);
+  packageIdRef.current = packageId;
+
+  const guestNameRef = useRef(guestName);
+  guestNameRef.current = guestName;
+
+  const guestEmailRef = useRef(guestEmail);
+  guestEmailRef.current = guestEmail;
+
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
-    let buttons: any;
     let isCancelled = false;
+    let buttonsInstance: any = null;
+
     setLoading(true);
     setErr(null);
 
-    loadSdk(currency)
+    preloadPayPalSdk(currency)
       .then(() => {
-        if (isCancelled || !ref.current) return;
-        ref.current.innerHTML = "";
-        setLoading(false);
+        if (isCancelled || !containerRef.current) return;
+        if (!window.paypal?.Buttons) {
+          throw new Error("SDK de PayPal no disponible");
+        }
 
-        buttons = window.paypal.Buttons({
+        // Clean container before mounting
+        containerRef.current.innerHTML = "";
+
+        buttonsInstance = window.paypal.Buttons({
           style: {
             layout: "vertical",
             shape: "rect",
@@ -108,22 +131,33 @@ export function PayPalButton({
             height: 48,
           },
           onClick: (_data: any, actions: any) => {
-            if (!isValidInput) {
-              setErr("Por favor ingresa tu nombre y correo electrónico para continuar con el pago.");
+            const name = guestNameRef.current.trim();
+            const email = guestEmailRef.current.trim();
+
+            if (name.length < 2) {
+              setErr("Por favor ingresa tu nombre o alias para continuar.");
+              return actions.reject();
+            }
+            if (!email || !email.includes("@") || !email.includes(".")) {
+              setErr("Por favor ingresa un correo electrónico válido para recibir tus boletos.");
               return actions.reject();
             }
             setErr(null);
             return actions.resolve();
           },
           createOrder: async () => {
-            if (!guestName.trim() || !guestEmail.trim()) {
+            const name = guestNameRef.current.trim();
+            const email = guestEmailRef.current.trim().toLowerCase();
+
+            if (!name || !email) {
               throw new Error("Nombre y correo requeridos");
             }
+
             const res = await create({
               data: {
-                packageId,
-                guestName: guestName.trim(),
-                guestEmail: guestEmail.trim().toLowerCase(),
+                packageId: packageIdRef.current,
+                guestName: name,
+                guestEmail: email,
               },
             });
             return res.paypalOrderId;
@@ -131,9 +165,9 @@ export function PayPalButton({
           onApprove: async (d: { orderID: string }) => {
             try {
               const r = await capture({ data: { paypalOrderId: d.orderID } });
-              onDone({ ok: true, ...r });
+              onDoneRef.current({ ok: true, ...r });
             } catch (error: any) {
-              onDone({
+              onDoneRef.current({
                 ok: false,
                 error: error instanceof Error ? error.message : "Error al confirmar el pago en el servidor",
               });
@@ -141,23 +175,29 @@ export function PayPalButton({
           },
           onError: (e: unknown) => {
             console.error("PayPal Error:", e);
-            onDone({
+            onDoneRef.current({
               ok: false,
               error: e instanceof Error ? e.message : "Error durante el procesamiento del pago",
             });
           },
           onCancel: () => {
-            setErr("Cancelaste la operación de pago. Puedes volver a intentarlo.");
+            setErr("Operación cancelada. Puedes volver a intentarlo cuando desees.");
           },
         });
 
-        if (ref.current) {
-          buttons.render(ref.current).catch((renderErr: any) => {
-            console.error("PayPal render error:", renderErr);
-            if (!isCancelled) {
-              setErr("Hubo un problema al inicializar las opciones de pago.");
-            }
-          });
+        if (containerRef.current) {
+          buttonsInstance
+            .render(containerRef.current)
+            .then(() => {
+              if (!isCancelled) setLoading(false);
+            })
+            .catch((renderErr: any) => {
+              console.error("PayPal render error:", renderErr);
+              if (!isCancelled) {
+                setLoading(false);
+                setErr("Hubo un problema al inicializar las opciones de pago.");
+              }
+            });
         }
       })
       .catch((e) => {
@@ -170,12 +210,12 @@ export function PayPalButton({
     return () => {
       isCancelled = true;
       try {
-        buttons?.close?.();
+        buttonsInstance?.close?.();
       } catch {
         /* noop */
       }
     };
-  }, [packageId, currency, guestName, guestEmail, isValidInput]);
+  }, [currency]); // Only re-mount if currency changes, never on typing!
 
   return (
     <div className="w-full space-y-3">
@@ -193,11 +233,11 @@ export function PayPalButton({
       )}
 
       <div
-        className={`w-full transition-opacity duration-200 ${
+        className={`w-full transition-opacity duration-150 ${
           disabled ? "opacity-50 pointer-events-none" : "opacity-100"
         } ${loading ? "hidden" : "block"}`}
       >
-        <div ref={ref} className="min-h-[105px] w-full" />
+        <div ref={containerRef} className="min-h-[105px] w-full" />
       </div>
 
       <div className="flex items-center justify-center gap-3 pt-1 text-[11px] text-muted-foreground">

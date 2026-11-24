@@ -20,7 +20,7 @@ import { AmbientBackground } from "@/components/ambient-background";
 import { Reveal } from "@/components/reveal";
 import { PrizeGallery } from "@/components/prize-gallery";
 import { Button } from "@/components/ui/button";
-import { PayPalButton } from "@/components/paypal-button";
+import { PayPalButton, preloadPayPalSdk } from "@/components/paypal-button";
 import { simulateDemoOrder } from "@/lib/paypal.functions";
 import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -104,6 +104,10 @@ function CampaignPage() {
   const { data } = useSuspenseQuery(featuredCampaignQuery);
   const { t, lang } = useI18n();
   const [openPrizeId, setOpenPrizeId] = useState<string | null>(null);
+
+  useEffect(() => {
+    preloadPayPalSdk(data?.campaign?.currency || "USD");
+  }, [data?.campaign?.currency]);
   if (!data) {
     return (
       <div className="min-h-screen bg-background"><SiteHeader /><p className="p-16 text-center text-muted-foreground">{t("loading")}</p></div>
