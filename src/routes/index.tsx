@@ -14,6 +14,7 @@ import { SITE_NAME, SITE_URL, OG_FALLBACK_IMAGE } from "@/lib/seo";
 import type { Json } from "@/integrations/supabase/types";
 import { AmbientBackground } from "@/components/ambient-background";
 import { Reveal } from "@/components/reveal";
+import { PrizeGallery } from "@/components/prize-gallery";
 import { Button } from "@/components/ui/button";
 import { PayPalButton } from "@/components/paypal-button";
 import { simulateDemoOrder } from "@/lib/paypal.functions";
@@ -118,6 +119,7 @@ function CampaignPage() {
         <Reveal><PackagesSection /></Reveal>
         <Reveal><HowSection /></Reveal>
         <Reveal><PrizesSection /></Reveal>
+        <Reveal><PrizeGallery /></Reveal>
         <Reveal><EntriesSection /></Reveal>
         <WinnersSection />
         <section id="faq" className="mx-auto max-w-3xl scroll-mt-20 px-4 py-20">
