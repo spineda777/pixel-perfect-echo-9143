@@ -94,7 +94,11 @@ export const drawWinners = createServerFn({ method: "POST" })
         .neq("orders.paypal_capture_id", "DEMO_SIMULATION");
       if (paidError) return fail(paidError);
       if (!canDrawFromSales(paidEntries ?? 0, c.max_inventory)) {
-        return fail(new Error("At least 60% of inventory must be sold before the draw. Test entries do not count."));
+        return fail(
+          new Error(
+            "At least 60% of inventory must be sold before the draw. Test entries do not count.",
+          ),
+        );
       }
       const ended = !!c.ends_at && Date.now() > new Date(c.ends_at).getTime();
       if (!ended && !data.allowEarly) {
@@ -117,7 +121,7 @@ export const drawWinners = createServerFn({ method: "POST" })
       const stored: StoredDraw = {
         drawn_at: new Date().toISOString(),
         total_entries: entries.length,
-        total_participants: new Set(entries.map((e) => e.user_id)).size,
+        total_participants: new Set(entries.map((e) => e.identity)).size,
         winners,
       };
       const myId = await s.writeAudit({
@@ -167,12 +171,16 @@ export const getDrawResult = createServerFn({ method: "GET" })
     const rec = await s.findDrawRecord(data.campaignId);
     if (!rec) return null;
     const stored = rec.new_data as unknown as StoredDraw;
-    const ids = stored.winners.map((w) => w.user_id);
-    const { data: profiles } = await supabaseAdmin
-      .from("profiles")
-      .select("id, public_handle")
-      .in("id", ids);
+    const userIds = stored.winners.map((w) => w.user_id).filter((id): id is string => !!id);
+    const orderIds = stored.winners.map((w) => w.order_id).filter((id): id is string => !!id);
+    const { data: profiles } = userIds.length
+      ? await supabaseAdmin.from("profiles").select("id, public_handle").in("id", userIds)
+      : { data: [] as { id: string; public_handle: string }[] };
+    const { data: orders } = orderIds.length
+      ? await supabaseAdmin.from("orders").select("id, payer_name").in("id", orderIds)
+      : { data: [] as { id: string; payer_name: string | null }[] };
     const handle = new Map((profiles ?? []).map((p) => [p.id, p.public_handle]));
+    const guestName = new Map((orders ?? []).map((o) => [o.id, o.payer_name]));
     return {
       drawn_at: stored.drawn_at,
       total_entries: stored.total_entries,
@@ -180,7 +188,10 @@ export const getDrawResult = createServerFn({ method: "GET" })
         .map((w) => ({
           prize_rank: w.prize_rank,
           entry_number: w.entry_number,
-          public_handle: handle.get(w.user_id) ?? "RSP-ANON",
+          public_handle:
+            (w.user_id ? handle.get(w.user_id) : undefined) ??
+            (w.order_id ? guestName.get(w.order_id) : undefined) ??
+            "RSP-GUEST",
         }))
         .sort((a, b) => a.prize_rank - b.prize_rank),
     };

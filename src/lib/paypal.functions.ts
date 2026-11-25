@@ -4,9 +4,8 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 async function getOptionalUserId(): Promise<string | null> {
   try {
-    const { getEvent } = await import("@tanstack/react-start/server");
-    const event = getEvent();
-    const authHeader = event?.request?.headers?.get("authorization");
+    const { getRequestHeader } = await import("@tanstack/react-start/server");
+    const authHeader = getRequestHeader("authorization");
     if (!authHeader?.startsWith("Bearer ")) return null;
     const token = authHeader.slice("Bearer ".length).trim();
     if (!token) return null;
@@ -19,9 +18,9 @@ async function getOptionalUserId(): Promise<string | null> {
 }
 
 async function sendConfirmation(o: {
-  userId?: string | null;
-  fallbackEmail?: string | null;
-  recipientName?: string | null;
+  userId?: string | null | undefined;
+  fallbackEmail?: string | null | undefined;
+  recipientName?: string | null | undefined;
   orderId: string;
   orderCode: string;
   campaignTitle: string;
@@ -48,7 +47,7 @@ async function sendConfirmation(o: {
     else {
       const r = await sendOrderConfirmationEmail({
         to,
-        recipientName: o.recipientName ?? undefined,
+        ...(o.recipientName ? { recipientName: o.recipientName } : {}),
         orderCode: o.orderCode,
         campaignTitle: o.campaignTitle,
         entriesCount: o.entriesCount,
@@ -109,6 +108,21 @@ export const createPaypalOrder = createServerFn({ method: "POST" })
       max_per_user: number;
     };
     if (camp.mode !== "production") throw new Error("Campaign is in demo mode");
+
+    // Per-person limit: logged-in users are capped by the database; guests are capped by email here.
+    const buyerEmail = data.guestEmail.trim().toLowerCase();
+    const { data: prevOrders } = await supabaseAdmin
+      .from("orders")
+      .select("entries_count")
+      .eq("campaign_id", pkg.campaign_id)
+      .eq("status", "completed")
+      .ilike("payer_email", buyerEmail.replace(/[\\%_]/g, "\\$&"));
+    const alreadyBought = (prevOrders ?? []).reduce((n, o) => n + o.entries_count, 0);
+    if (alreadyBought + pkg.entries > camp.max_per_user) {
+      throw new Error(
+        `Per-person limit: maximum ${camp.max_per_user} entries per buyer (you already have ${alreadyBought}).`,
+      );
+    }
 
     // Check remaining inventory
     const { count: validCount } = await supabaseAdmin
@@ -317,7 +331,7 @@ export const simulateDemoOrder = createServerFn({ method: "POST" })
         currency: camp.currency,
         paypal_capture_id: "DEMO_SIMULATION",
         payer_name: payerName,
-        payer_email: payerEmail,
+        payer_email: payerEmail ?? null,
         status: "completed",
       })
       .select("id, order_code")

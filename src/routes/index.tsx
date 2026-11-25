@@ -293,7 +293,7 @@ function CampaignPage() {
 
     // Guest checkout form state (prefilled if user is already logged in)
     const [guestName, setGuestName] = useState(
-      user?.user_metadata?.full_name || user?.email?.split("@")[0] || ""
+      user?.user_metadata?.["full_name"] || user?.email?.split("@")[0] || ""
     );
     const [guestEmail, setGuestEmail] = useState(user?.email || "");
     const [nameError, setNameError] = useState("");
@@ -303,8 +303,8 @@ function CampaignPage() {
       if (user?.email && !guestEmail) {
         setGuestEmail(user.email);
       }
-      if (user?.user_metadata?.full_name && !guestName) {
-        setGuestName(user.user_metadata.full_name);
+      if (user?.user_metadata?.["full_name"] && !guestName) {
+        setGuestName(user.user_metadata["full_name"]);
       }
     }, [user]);
 

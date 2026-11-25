@@ -2,7 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/integrations/supabase/client.server";
 import type { Database, Json } from "@/integrations/supabase/types";
-import { isTestEntry } from "./draw";
+import { entryIdentity, isTestEntry } from "./draw";
 
 export async function assertAdmin(sb: SupabaseClient<Database>, userId: string): Promise<void> {
   const { data, error } = await sb
@@ -33,10 +33,15 @@ export async function findUserByEmail(
  * atomically in the database (allocate_entries + trigger). A future payment webhook
  * should call this after confirming a successful payment.
  */
-export async function allocateEntriesForUser(campaignId: string, userId: string | null, quantity: number) {
+export async function allocateEntriesForUser(
+  campaignId: string,
+  userId: string | null,
+  quantity: number,
+) {
   const { data, error } = await supabaseAdmin.rpc("allocate_entries", {
     _campaign_id: campaignId,
-    _user_id: userId,
+    // The database function accepts NULL for guest purchases (migration 0006); generated types still say string.
+    _user_id: userId as string,
     _quantity: quantity,
   });
   if (error) throw new Error(error.message);
@@ -66,11 +71,17 @@ export async function writeAudit(row: {
 }
 
 export async function loadAllValidEntries(campaignId: string) {
-  const out: { id: string; entry_number: number; user_id: string }[] = [];
+  const out: {
+    id: string;
+    entry_number: number;
+    user_id: string | null;
+    order_id: string | null;
+    identity: string;
+  }[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await supabaseAdmin
       .from("entries")
-      .select("id, entry_number, user_id, orders(paypal_capture_id, payer_email)")
+      .select("id, entry_number, user_id, order_id, orders(paypal_capture_id, payer_email)")
       .eq("campaign_id", campaignId)
       .eq("status", "valid")
       .order("entry_number")
@@ -79,8 +90,19 @@ export async function loadAllValidEntries(campaignId: string) {
     // Entries from admin test simulations are never eligible for the draw.
     for (const e of data ?? []) {
       if (isTestEntry(e as unknown as Parameters<typeof isTestEntry>[0])) continue;
-      const participantId = e.user_id || (e.orders as any)?.payer_email || e.id;
-      out.push({ id: e.id, entry_number: e.entry_number, user_id: participantId });
+      const order = e.orders as unknown as { payer_email?: string | null } | null;
+      out.push({
+        id: e.id,
+        entry_number: e.entry_number,
+        user_id: e.user_id,
+        order_id: e.order_id,
+        identity: entryIdentity({
+          id: e.id,
+          user_id: e.user_id,
+          order_id: e.order_id,
+          orders: order,
+        }),
+      });
     }
     if (!data || data.length < 1000) break;
   }
@@ -105,25 +127,37 @@ export async function enrichForAdmin(stored: {
   drawn_at: string;
   total_entries: number;
   total_participants: number;
-  winners: { prize_rank: number; entry_number: number; user_id: string }[];
+  winners: {
+    prize_rank: number;
+    entry_number: number;
+    user_id: string | null;
+    order_id?: string | null;
+  }[];
 }) {
   const winners = await Promise.all(
     stored.winners.map(async (w) => {
       let email = "(unknown)";
-      if (w.user_id && w.user_id.includes("@")) {
-        email = w.user_id;
-      } else if (w.user_id) {
-        try {
-          const { data } = await supabaseAdmin.auth.admin.getUserById(w.user_id);
-          if (data?.user?.email) email = data.user.email;
-        } catch {
-          // guest participant identifier
+      let name: string | undefined;
+      if (w.user_id) {
+        const { data } = await supabaseAdmin.auth.admin.getUserById(w.user_id);
+        email = data.user?.email ?? email;
+      }
+      if (w.order_id) {
+        const { data: o } = await supabaseAdmin
+          .from("orders")
+          .select("payer_email, payer_name")
+          .eq("id", w.order_id)
+          .maybeSingle();
+        if (o) {
+          if (email === "(unknown)" && o.payer_email) email = o.payer_email;
+          name = o.payer_name ?? undefined;
         }
       }
       return {
         prize_rank: w.prize_rank,
         entry_number: w.entry_number,
         email,
+        ...(name ? { name } : {}),
       };
     }),
   );

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  entryIdentity,
   isTestEntry,
   pickWinners,
   secureRandomInt,
@@ -13,10 +14,11 @@ const prizes: DrawPrize[] = [
   { id: "p1", rank: 1, winner_count: 1 },
   { id: "p2", rank: 2, winner_count: 1 },
 ];
-const mk = (n: number, user: string): DrawEntry => ({
+const mk = (n: number, user: string | null, identity = user ?? `guest:${n}`): DrawEntry => ({
   id: `e${n}`,
   entry_number: n,
   user_id: user,
+  identity,
 });
 
 describe("pickWinners", () => {
@@ -30,7 +32,7 @@ describe("pickWinners", () => {
     const entries = [mk(1, "a"), mk(2, "a"), mk(3, "a"), mk(4, "b"), mk(5, "c")];
     for (let i = 0; i < 200; i++) {
       const w = pickWinners(entries, prizes);
-      expect(new Set(w.map((x) => x.user_id)).size).toBe(w.length);
+      expect(new Set(w.map((x) => x.identity)).size).toBe(w.length);
     }
   });
 
@@ -72,5 +74,28 @@ describe("isTestEntry", () => {
     expect(isTestEntry({ orders: { paypal_capture_id: "5AB12345X" } })).toBe(false);
     expect(isTestEntry({ orders: null })).toBe(false);
     expect(isTestEntry({})).toBe(false);
+  });
+});
+
+describe("guest entries (no account)", () => {
+  it("lets different guests all be eligible and never gives one guest two prizes", () => {
+    const entries = [
+      mk(1, null, "guest:ana@x.com"),
+      mk(2, null, "guest:ana@x.com"),
+      mk(3, null, "guest:bob@x.com"),
+      mk(4, null, "guest:cleo@x.com"),
+    ];
+    for (let i = 0; i < 200; i++) {
+      const w = pickWinners(entries, prizes);
+      expect(w).toHaveLength(3);
+      expect(new Set(w.map((x) => x.identity)).size).toBe(3);
+    }
+  });
+  it("derives identity from account, then guest email, then order", () => {
+    expect(entryIdentity({ id: "e1", user_id: "u1" })).toBe("user:u1");
+    expect(entryIdentity({ id: "e2", user_id: null, orders: { payer_email: " Ana@X.com " } })).toBe(
+      "guest:ana@x.com",
+    );
+    expect(entryIdentity({ id: "e3", user_id: null, order_id: "o9" })).toBe("order:o9");
   });
 });
